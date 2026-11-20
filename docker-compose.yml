@@ -1,26 +1,49 @@
-# MyKyntus Suivi - backend + frontend
-# The database is the existing PostgreSQL server 10.10.10.50 (database pilotdb).
-# The app's tables go in their own schema "mykyntus_suivi" so nothing touches the other tables of pilotdb.
+# MyKyntus Suivi - database + backend + frontend
+# The database is created automatically in its own container (mykyntus-suivi-db): nothing to set up on the server.
+# The backend creates the tables and the default accounts at startup.
 #
-#   cp .env.example .env    (then put the database password and a JWT secret)
-#   docker-compose up -d --build
+#   docker-compose up -d --build        (works without .env; copy .env.example to .env to change secrets)
 #
 # Frontend : http://10.10.10.25:3955   Backend : http://10.10.10.25:8334
+# To use an existing PostgreSQL instead (e.g. 10.10.10.50), set DB_HOST / DB_NAME / DB_USERNAME / DB_PASSWORD in .env.
 
 # "version" 2.4 keeps the file compatible with the old docker-compose 1.x (python) installed on the server
 # and with "docker compose" v2. The project name comes from COMPOSE_PROJECT_NAME in .env.
 version: "2.4"
 
 services:
+  mykyntus-suivi-db:
+    image: postgres:17-alpine
+    container_name: mykyntus-suivi-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_NAME:-mykyntus_suivi}
+      - POSTGRES_USER=${DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+      - TZ=Europe/Paris
+    volumes:
+      - mykyntus-suivi-pgdata:/var/lib/postgresql/data
+    ports:
+      # 5434 on the server, for pgAdmin (5432 may already be used)
+      - "${DB_EXPOSED_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-mykyntus_suivi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   mykyntus-suivi-backend:
     build: ./backend
     image: mykyntus-suivi-backend
     container_name: mykyntus-suivi-backend
     restart: unless-stopped
+    depends_on:
+      mykyntus-suivi-db:
+        condition: service_healthy
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST:-10.10.10.50}:${DB_PORT:-5432}/${DB_NAME:-pilotdb}?currentSchema=${DB_SCHEMA:-mykyntus_suivi}
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-kyntus_user}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST:-mykyntus-suivi-db}:${DB_PORT:-5432}/${DB_NAME:-mykyntus_suivi}?currentSchema=${DB_SCHEMA:-mykyntus_suivi}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-password}
       - DB_SCHEMA=${DB_SCHEMA:-mykyntus_suivi}
       - APP_JWT_SECRET=${APP_JWT_SECRET:-change-me-mykyntus-suivi-secret-key-0123456789}
       - APP_CORS_ORIGINS=${APP_CORS_ORIGINS:-http://10.10.10.25:3955}
@@ -40,6 +63,10 @@ services:
       - mykyntus-suivi-backend
     ports:
       - "${FRONTEND_PORT:-3955}:3955"
+
+volumes:
+  mykyntus-suivi-pgdata:
+    name: mykyntus-suivi-pgdata
 
 networks:
   default:

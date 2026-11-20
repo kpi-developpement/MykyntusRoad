@@ -39,18 +39,19 @@ URL de l'API : `frontend/.env.local` (`NEXT_PUBLIC_API_URL=http://localhost:8334
 
 ```bash
 git clone <repo> mykyntus-suivi && cd mykyntus-suivi
-cp .env.example .env        # renseigner DB_PASSWORD et APP_JWT_SECRET
+cp .env.example .env        # optionnel : changer DB_PASSWORD et APP_JWT_SECRET
 docker compose up -d --build   # ou docker-compose up -d --build (ancienne version 1.x)
 ```
 
 | Service | Conteneur | Port serveur |
 |---|---|---|
-| PostgreSQL existant `10.10.10.50:5432`, base `pilotdb` | (hors Docker) | - |
+| PostgreSQL 17 (base `mykyntus_suivi`, créée automatiquement) | `mykyntus-suivi-db` | 5434 (pgAdmin) |
 | Backend Spring Boot | `mykyntus-suivi-backend` | 8334 |
 | Frontend Next.js | `mykyntus-suivi-frontend` | 3955 → http://10.10.10.25:3955 |
 
-Les tables de l'app sont créées dans le schéma `mykyntus_suivi` de `pilotdb` (créé au démarrage si absent), séparé des autres tables de la base.
-Tout est préfixé `mykyntus-suivi` (projet, conteneurs, réseau) pour ne pas toucher à l'autre MyKyntus.
+La base, le schéma `mykyntus_suivi`, les tables et les comptes par défaut sont créés au démarrage : rien à préparer sur le serveur.
+Pour utiliser un PostgreSQL existant (ex. `10.10.10.50`, base `pilotdb`), renseigner `DB_HOST`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` dans `.env`.
+Tout est préfixé `mykyntus-suivi` (projet, conteneurs, réseau, volume) pour ne pas toucher à l'autre MyKyntus.
 `PUBLIC_API_URL` est intégré au frontend au moment du build : après l'avoir changé, relancer `docker compose up -d --build`.
 Le build du frontend télécharge les polices Google : le serveur doit avoir accès à Internet pendant le build.
 
