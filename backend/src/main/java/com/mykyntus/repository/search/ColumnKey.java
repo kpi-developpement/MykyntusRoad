@@ -1,0 +1,55 @@
+package com.mykyntus.repository.search;
+
+import com.mykyntus.exception.ApiException;
+
+/**
+ * Identifies a column of the dossier table, as sent by the UI.
+ * <ul>
+ *   <li>{@code date} : dossier date</li>
+ *   <li>{@code idExterne} : Ordre de travail: ID Externe</li>
+ *   <li>{@code raw:<column name>} : a column of the imported files</li>
+ *   <li>{@code field:<id>} : an application column (J-1 / J / J+1)</li>
+ * </ul>
+ */
+public sealed interface ColumnKey {
+
+    String DATE = "date";
+    String ID_EXTERNE = "idExterne";
+    String RAW_PREFIX = "raw:";
+    String FIELD_PREFIX = "field:";
+
+    record DateKey() implements ColumnKey {
+    }
+
+    record IdKey() implements ColumnKey {
+    }
+
+    record RawKey(String column) implements ColumnKey {
+    }
+
+    record FieldKey(Long fieldId) implements ColumnKey {
+    }
+
+    static ColumnKey parse(String key) {
+        if (key == null || key.isBlank()) {
+            throw ApiException.badRequest("Colonne manquante");
+        }
+        if (DATE.equals(key)) {
+            return new DateKey();
+        }
+        if (ID_EXTERNE.equals(key)) {
+            return new IdKey();
+        }
+        if (key.startsWith(RAW_PREFIX) && key.length() > RAW_PREFIX.length()) {
+            return new RawKey(key.substring(RAW_PREFIX.length()));
+        }
+        if (key.startsWith(FIELD_PREFIX)) {
+            try {
+                return new FieldKey(Long.parseLong(key.substring(FIELD_PREFIX.length())));
+            } catch (NumberFormatException ignored) {
+                // falls through to the error below
+            }
+        }
+        throw ApiException.badRequest("Colonne inconnue : " + key);
+    }
+}
