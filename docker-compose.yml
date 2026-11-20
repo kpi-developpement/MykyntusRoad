@@ -40,7 +40,7 @@ services:
       mykyntus-suivi-db:
         condition: service_healthy
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST:-mykyntus-suivi-db}:${DB_PORT:-5432}/${DB_NAME:-mykyntus_suivi}?currentSchema=${DB_SCHEMA:-mykyntus_suivi}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST:-mykyntus-suivi-db}:${DATABASE_PORT:-5432}/${DB_NAME:-mykyntus_suivi}?currentSchema=${DB_SCHEMA:-mykyntus_suivi}
       - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-password}
       - DB_SCHEMA=${DB_SCHEMA:-mykyntus_suivi}
