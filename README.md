@@ -40,7 +40,7 @@ URL de l'API : `frontend/.env.local` (`NEXT_PUBLIC_API_URL=http://localhost:8334
 ```bash
 git clone <repo> mykyntus-suivi && cd mykyntus-suivi
 cp .env.example .env        # changer POSTGRES_PASSWORD et APP_JWT_SECRET
-docker compose up -d --build
+docker compose up -d --build   # ou docker-compose up -d --build (ancienne version 1.x)
 ```
 
 | Service | Conteneur | Port serveur |

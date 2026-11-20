@@ -6,7 +6,9 @@
 #
 # Frontend : http://10.10.10.25:3955   Backend : http://10.10.10.25:8334
 
-name: mykyntus-suivi
+# "version" 2.4 keeps the file compatible with the old docker-compose 1.x (python) installed on the server
+# and with "docker compose" v2. The project name comes from COMPOSE_PROJECT_NAME in .env.
+version: "2.4"
 
 services:
   mykyntus-suivi-db:
