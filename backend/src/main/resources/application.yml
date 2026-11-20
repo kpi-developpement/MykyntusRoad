@@ -17,6 +17,10 @@ spring:
     open-in-view: false
     properties:
       hibernate:
+        # Own schema when the database is shared with other apps (created automatically if missing)
+        default_schema: ${DB_SCHEMA:public}
+        hbm2ddl:
+          create_namespaces: true
         jdbc:
           batch_size: 100
         order_inserts: true

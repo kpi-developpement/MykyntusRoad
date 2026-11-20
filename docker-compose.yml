@@ -1,8 +1,9 @@
-# MyKyntus Suivi - database + backend + frontend
-# Every name is prefixed "mykyntus-suivi" so nothing collides with the other MyKyntus already on the server.
+# MyKyntus Suivi - backend + frontend
+# The database is the existing PostgreSQL server 10.10.10.50 (database pilotdb).
+# The app's tables go in their own schema "mykyntus_suivi" so nothing touches the other tables of pilotdb.
 #
-#   cp .env.example .env    (then change the passwords)
-#   docker compose up -d --build
+#   cp .env.example .env    (then put the database password and a JWT secret)
+#   docker-compose up -d --build
 #
 # Frontend : http://10.10.10.25:3955   Backend : http://10.10.10.25:8334
 
@@ -11,38 +12,16 @@
 version: "2.4"
 
 services:
-  mykyntus-suivi-db:
-    image: postgres:17-alpine
-    container_name: mykyntus-suivi-db
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-mykyntus_suivi}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
-      - TZ=Europe/Paris
-    volumes:
-      - mykyntus-suivi-pgdata:/var/lib/postgresql/data
-    ports:
-      # 5434 on the server (5432 is probably used by the other project) - for pgAdmin
-      - "${DB_PORT:-5434}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mykyntus_suivi}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
   mykyntus-suivi-backend:
     build: ./backend
     image: mykyntus-suivi-backend
     container_name: mykyntus-suivi-backend
     restart: unless-stopped
-    depends_on:
-      mykyntus-suivi-db:
-        condition: service_healthy
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://mykyntus-suivi-db:5432/${POSTGRES_DB:-mykyntus_suivi}
-      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${DB_HOST:-10.10.10.50}:${DB_PORT:-5432}/${DB_NAME:-pilotdb}?currentSchema=${DB_SCHEMA:-mykyntus_suivi}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-kyntus_user}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - DB_SCHEMA=${DB_SCHEMA:-mykyntus_suivi}
       - APP_JWT_SECRET=${APP_JWT_SECRET:-change-me-mykyntus-suivi-secret-key-0123456789}
       - APP_CORS_ORIGINS=${APP_CORS_ORIGINS:-http://10.10.10.25:3955}
     ports:
@@ -61,10 +40,6 @@ services:
       - mykyntus-suivi-backend
     ports:
       - "${FRONTEND_PORT:-3955}:3955"
-
-volumes:
-  mykyntus-suivi-pgdata:
-    name: mykyntus-suivi-pgdata
 
 networks:
   default:
