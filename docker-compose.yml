@@ -23,9 +23,8 @@ services:
       - TZ=Europe/Paris
     volumes:
       - mykyntus-suivi-pgdata:/var/lib/postgresql/data
-    ports:
-      # 5434 on the server, for pgAdmin (5432 may already be used)
-      - "${DB_EXPOSED_PORT:-5434}:5432"
+    # No port published on the server: only the backend reaches the database, through the Docker network,
+    # so it can never collide with another PostgreSQL. Console: docker exec -it mykyntus-suivi-db psql -U postgres mykyntus_suivi
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-mykyntus_suivi}"]
       interval: 5s

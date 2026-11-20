@@ -45,7 +45,7 @@ docker compose up -d --build   # ou docker-compose up -d --build (ancienne versi
 
 | Service | Conteneur | Port serveur |
 |---|---|---|
-| PostgreSQL 17 (base `mykyntus_suivi`, créée automatiquement) | `mykyntus-suivi-db` | 5434 (pgAdmin) |
+| PostgreSQL 17 (base `mykyntus_suivi`, créée automatiquement) | `mykyntus-suivi-db` | aucun (réseau Docker interne) |
 | Backend Spring Boot | `mykyntus-suivi-backend` | 8334 |
 | Frontend Next.js | `mykyntus-suivi-frontend` | 3955 → http://10.10.10.25:3955 |
 
