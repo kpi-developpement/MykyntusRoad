@@ -43,6 +43,7 @@ public class ExportService {
 
     @Transactional(readOnly = true)
     public byte[] export(ExportRequest request) {
+        statusRules.clear();
         DossierSearchRequest criteria = request.criteria() == null ? DossierSearchRequest.empty() : request.criteria();
         List<ExportRequest.Column> columns = request.columns() == null || request.columns().isEmpty()
                 ? defaultColumns() : request.columns();
@@ -102,9 +103,24 @@ public class ExportService {
             case ColumnKey.IdKey ignored -> d.getIdExterne();
             case ColumnKey.FlagsKey ignored -> String.join(", ", FlagService.decode(d.getFlags()));
             case ColumnKey.AssigneeKey ignored -> d.getAssignedTo();
+            case ColumnKey.StatusKey(com.mykyntus.entity.FieldSection section) -> status(values, section);
             case ColumnKey.RawKey(String column) -> d.getRawData().get(column);
             case ColumnKey.FieldKey(Long fieldId) -> values.get(fieldId);
         };
+    }
+
+    private final Map<com.mykyntus.entity.FieldSection, List<Long>[]> statusRules = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** "Non touché" / "En cours" / "Traité", same rules as the table filter. */
+    @SuppressWarnings("unchecked")
+    private String status(Map<Long, String> values, com.mykyntus.entity.FieldSection section) {
+        List<Long>[] rules = statusRules.computeIfAbsent(section,
+                s -> new List[]{searchRepository.requiredFields(s), searchRepository.activeFields(s)});
+        java.util.function.Predicate<Long> filled = id -> values.get(id) != null && !values.get(id).isBlank();
+        if (!rules[0].isEmpty() && rules[0].stream().allMatch(filled)) {
+            return "Traité";
+        }
+        return rules[1].stream().anyMatch(filled) ? "En cours" : "Non touché";
     }
 
     private List<ExportRequest.Column> defaultColumns() {

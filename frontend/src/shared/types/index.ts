@@ -108,14 +108,30 @@ export interface DossierTable {
   rows: Page<DossierRow>;
 }
 
-/** Column keys: "date", "idExterne", "flags", "assignee", "raw:<column name>", "field:<id>". */
+/** Condition of a column filter. */
+export type FilterOp = "contains" | "notContains" | "equals" | "notEquals" | "startsWith" | "endsWith" | "empty" | "notEmpty" | "between";
+
+/** Column keys: "date", "idExterne", "flags", "assignee", "status:<SECTION>", "raw:<column name>", "field:<id>". */
 export interface ColumnFilter {
   key: string;
   /** Accepted values ("" = empty). */
   values?: string[] | null;
-  /** "contains" filter. */
+  /** Text of the condition. */
   text?: string | null;
+  /** Condition (default "contains" when a text is given). */
+  op?: FilterOp | null;
+  /** Date range (yyyy-MM-dd) of a "between" condition. */
+  from?: string | null;
+  to?: string | null;
 }
+
+/** Progress of a dossier in a section. */
+export type ProgressStatus = "UNTOUCHED" | "IN_PROGRESS" | "DONE";
+export const PROGRESS_LABELS: Record<ProgressStatus, string> = {
+  UNTOUCHED: "Non touchés",
+  IN_PROGRESS: "En cours",
+  DONE: "Traités",
+};
 
 export interface SortSpec {
   key: string;
@@ -148,6 +164,8 @@ export interface SectionStat {
   label: string;
   treated: number;
   fields: number;
+  /** Every required field filled. */
+  done: number;
 }
 
 export interface DossierStats {

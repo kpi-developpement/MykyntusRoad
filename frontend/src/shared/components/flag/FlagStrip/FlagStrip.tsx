@@ -8,6 +8,7 @@ import { dossierService } from "../../../services/dossierService";
 import type { FacetResponse } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { flagTone } from "../../../utils/flagColors";
+import { FlagLegendButton } from "../FlagLegend/FlagLegend";
 
 /**
  * Flag counters of the current table (date, search and other filters applied).
@@ -78,6 +79,7 @@ export function FlagStrip({ grid }: { grid: DossierGrid }) {
           );
         })}
       </div>
+      <FlagLegendButton variant="chip" />
       {active.length > 0 && (
         <button
           type="button"

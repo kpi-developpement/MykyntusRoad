@@ -5,7 +5,7 @@ import { LayoutProvider, useLayout } from "../../../context/LayoutContext";
 import { useHotkey, withMod } from "../../../hooks/useHotkey";
 import type { NavSection } from "../../../types/navigation";
 import { CommandPalette } from "../../command/CommandPalette/CommandPalette";
-import { GridFloor } from "../GridFloor/GridFloor";
+import { InteractiveGrid } from "../InteractiveGrid/InteractiveGrid";
 import { PageTransition } from "../PageTransition/PageTransition";
 import { Sidebar } from "../Sidebar/Sidebar";
 import { Topbar } from "../Topbar/Topbar";
@@ -37,7 +37,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     <div className="app-canvas flex h-dvh overflow-hidden">
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <GridFloor />
+        <InteractiveGrid />
         <Topbar />
         <main className="scroll-thin relative flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
           <PageTransition>

@@ -119,10 +119,6 @@
   from { stroke-dashoffset: 44; }
   to { stroke-dashoffset: 0; }
 }
-@keyframes floor-flow {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(0, 72px, 0); }
-}
 /* Éclats de la célébration après un dispatch (transform / opacity uniquement). */
 @keyframes burst {
   0% { transform: translate3d(0, 0, 0) scale(0.4); opacity: 1; }
@@ -154,17 +150,15 @@
 @layer components {
   /* ---------------------------------------------------------------- canvas */
 
-  /* Fond de l'application : halos bleus, grille fine, grain. Peint une seule fois (statique). */
+  /* Fond de l'application : halos bleus et grain (statique). La grille est dessinée par <InteractiveGrid> (3D, réagit au curseur). */
   .app-canvas {
     background-color: var(--color-canvas);
     background-image:
       url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .12 0 0 0 0 .18 0 0 0 0 .55 0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
       radial-gradient(1100px 600px at 102% -12%, rgb(59 102 245 / 0.17), transparent 62%),
       radial-gradient(900px 560px at -12% 112%, rgb(14 165 233 / 0.11), transparent 60%),
-      radial-gradient(700px 420px at 42% 38%, rgb(99 102 241 / 0.05), transparent 70%),
-      linear-gradient(rgb(30 47 174 / 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(30 47 174 / 0.04) 1px, transparent 1px);
-    background-size: 160px 160px, auto, auto, auto, 46px 46px, 46px 46px;
+      radial-gradient(700px 420px at 42% 38%, rgb(99 102 241 / 0.05), transparent 70%);
+    background-size: 160px 160px, auto, auto, auto;
   }
 
   /* Lignes de grille claires pour les panneaux sombres (sidebar, login, drawers). */
@@ -343,48 +337,6 @@
   }
 
   /* ---------------------------------------------------------------- 3D */
-
-  /*
-   * Sol en grille 3D qui défile vers l'utilisateur, derrière le contenu.
-   * Un seul calque GPU : le plan est incliné une fois (rotateX), seule sa texture glisse (translate3d).
-   */
-  .grid-floor {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-    perspective: 560px;
-    perspective-origin: 50% 0%;
-    contain: strict;
-  }
-  .grid-floor-plane {
-    position: absolute;
-    left: -60%;
-    right: -60%;
-    top: 52%;
-    height: 120%;
-    transform: rotateX(74deg);
-    transform-origin: 50% 0;
-    overflow: hidden;
-  }
-  .grid-floor-lines {
-    position: absolute;
-    inset: -72px 0 0 0;
-    background-image:
-      linear-gradient(rgb(37 72 234 / 0.2) 1.5px, transparent 1.5px),
-      linear-gradient(90deg, rgb(37 72 234 / 0.2) 1.5px, transparent 1.5px);
-    background-size: 72px 72px;
-    animation: floor-flow 4s linear infinite;
-    will-change: transform;
-  }
-  /* fondu vers l'horizon + lueur (calque statique au-dessus de la grille) */
-  .grid-floor-fade {
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(60% 18% at 50% 52%, rgb(56 189 248 / 0.18), transparent 70%),
-      linear-gradient(to bottom, var(--color-canvas) 0%, var(--color-canvas) 50%, rgb(243 246 253 / 0.55) 66%, transparent 100%);
-  }
 
   /* Carte inclinable en 3D (variables --rx / --ry posées par useTilt, sans re-render React). */
   .tilt {

@@ -77,13 +77,14 @@ public class DossierService {
         validateKeys(request);
         long total = searchRepository.count(request);
         Map<FieldSection, Long> treated = searchRepository.treatedBySection(request);
+        Map<FieldSection, Long> done = searchRepository.doneBySection(request);
         Map<FieldSection, Long> fieldCount = fieldRepository.findAll().stream()
                 .filter(AppField::isActive)
                 .collect(Collectors.groupingBy(AppField::getSection, Collectors.counting()));
 
         List<DossierStatsResponse.SectionStat> sections = Arrays.stream(FieldSection.values())
                 .map(s -> new DossierStatsResponse.SectionStat(s, s.getLabel(),
-                        treated.getOrDefault(s, 0L), fieldCount.getOrDefault(s, 0L)))
+                        treated.getOrDefault(s, 0L), fieldCount.getOrDefault(s, 0L), done.getOrDefault(s, 0L)))
                 .toList();
         return new DossierStatsResponse(total, sections);
     }

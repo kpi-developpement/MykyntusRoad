@@ -6,7 +6,7 @@ import { dossierService } from "../../../services/dossierService";
 import { useToast } from "../../toast/ToastProvider/ToastProvider";
 import type { DossierGrid } from "../../../hooks/useDossierGrid";
 import { useGridPreferences } from "../../../hooks/useGridPreferences";
-import type { DossierRow } from "../../../types";
+import { MAIN_SECTIONS, type DossierRow, type FieldSection } from "../../../types";
 import { Alert1 } from "../../alert/Alert1/Alert1";
 import { Button1 } from "../../button/Button1/Button1";
 import { EmptyState } from "../../feedback/EmptyState/EmptyState";
@@ -16,6 +16,7 @@ import { DataGrid } from "../DataGrid/DataGrid";
 import type { GridColumn, GridGroup } from "../DataGrid/types";
 import { FilterChips } from "../FilterChips/FilterChips";
 import { GridToolbar } from "../GridToolbar/GridToolbar";
+import { ProgressFilter } from "../ProgressFilter/ProgressFilter";
 
 interface DossierGridPanelProps {
   /** Key used to remember density / visible columns. */
@@ -26,10 +27,12 @@ interface DossierGridPanelProps {
   groups?: GridGroup[];
   emptyAction?: React.ReactNode;
   maxHeight?: string;
+  /** Sections offered in the "Avancement" quick filter (non touchés / en cours / traités). */
+  progressSections?: FieldSection[];
 }
 
 /** Card with toolbar, active filter chips, data grid and pagination. */
-export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, maxHeight }: DossierGridPanelProps) {
+export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, maxHeight, progressSections = MAIN_SECTIONS }: DossierGridPanelProps) {
   const prefs = useGridPreferences(gridId);
   const visible = columns.filter((c) => prefs.isVisible(c));
   const rows = grid.data?.rows;
@@ -57,6 +60,7 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
   return (
     <Surface as="section" className="overflow-hidden rounded-3xl">
       <GridToolbar grid={grid} columns={columns} groups={groups} prefs={prefs} onExport={exportExcel} exporting={exporting} />
+      {progressSections.length > 0 && <ProgressFilter grid={grid} sections={progressSections} />}
       <FilterChips
         filters={grid.criteria.filters}
         columns={columns}

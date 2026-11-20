@@ -48,6 +48,7 @@ export function buildSuiviColumns({ data, sections, editableSections, rawSources
         key: `field:${field.id}`,
         label: field.label,
         groupId: section,
+        filterKind: field.type === "DATE" ? "date" : select ? "enum" : "text",
         width: field.type === "TEXT" ? 220 : field.type === "DATE" ? 160 : 184,
         sortable: true,
         filterable: true,

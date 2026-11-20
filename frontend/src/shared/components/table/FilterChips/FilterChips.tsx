@@ -2,7 +2,9 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ListFilter, Search, X } from "lucide-react";
-import type { ColumnFilter } from "../../../types";
+import { PROGRESS_LABELS, SECTION_LABELS, type ColumnFilter, type FieldSection, type ProgressStatus } from "../../../types";
+import { formatDate } from "../../../utils/date";
+import { OP_LABELS } from "../FilterPopover/ConditionFilter";
 import type { GridColumn } from "../DataGrid/types";
 
 interface FilterChipsProps<T> {
@@ -16,7 +18,14 @@ interface FilterChipsProps<T> {
 }
 
 function summary<T>(filter: ColumnFilter, column?: GridColumn<T>): string {
+  if (filter.op === "between" || (!filter.op && (filter.from || filter.to))) {
+    if (filter.from && filter.to) return filter.from === filter.to ? `le ${formatDate(filter.from)}` : `du ${formatDate(filter.from)} au ${formatDate(filter.to)}`;
+    return filter.from ? `à partir du ${formatDate(filter.from)}` : `jusqu'au ${formatDate(filter.to ?? "")}`;
+  }
+  if (filter.op === "empty" || filter.op === "notEmpty") return OP_LABELS[filter.op].toLowerCase();
+  if (filter.op && filter.text) return `${OP_LABELS[filter.op].toLowerCase()} « ${filter.text} »`;
   if (filter.text) return `contient « ${filter.text} »`;
+  if (filter.key.startsWith("status:")) return (filter.values ?? []).map((v) => PROGRESS_LABELS[v as ProgressStatus] ?? v).join(", ");
   const values = (filter.values ?? []).map((v) => (v === "" ? "(Vides)" : (column?.formatValue?.(v) ?? v)));
   const shown = values.slice(0, 2).join(", ");
   return values.length > 2 ? `${shown} +${values.length - 2}` : shown;
@@ -42,7 +51,7 @@ export function FilterChips<T>({ filters, columns, search, onRemove, onClearSear
             <Chip
               key={f.key}
               icon={<ListFilter className="size-3" />}
-              label={column?.label ?? f.key}
+              label={column?.label ?? (f.key.startsWith("status:") ? `Avancement ${SECTION_LABELS[f.key.slice(7) as FieldSection] ?? ""}` : f.key)}
               value={summary(f, column)}
               onRemove={() => onRemove(f.key)}
             />

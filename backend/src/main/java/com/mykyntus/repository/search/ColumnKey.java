@@ -11,6 +11,7 @@ import com.mykyntus.exception.ApiException;
  *   <li>{@code field:<id>} : an application column (J-1 / J / J+1)</li>
  *   <li>{@code flags} : flags of the dossier (P1, SECU...)</li>
  *   <li>{@code assignee} : sécurisation pilot the dossier is dispatched to</li>
+ *   <li>{@code status:<SECTION>} : progress of a section (UNTOUCHED, IN_PROGRESS, DONE)</li>
  * </ul>
  */
 public sealed interface ColumnKey {
@@ -21,6 +22,7 @@ public sealed interface ColumnKey {
     String FIELD_PREFIX = "field:";
     String FLAGS = "flags";
     String ASSIGNEE = "assignee";
+    String STATUS_PREFIX = "status:";
 
     record DateKey() implements ColumnKey {
     }
@@ -38,6 +40,10 @@ public sealed interface ColumnKey {
     }
 
     record AssigneeKey() implements ColumnKey {
+    }
+
+    /** Progress of the dossier in one section: nothing filled, started, or done. */
+    record StatusKey(com.mykyntus.entity.FieldSection section) implements ColumnKey {
     }
 
     static ColumnKey parse(String key) {
@@ -58,6 +64,13 @@ public sealed interface ColumnKey {
         }
         if (key.startsWith(RAW_PREFIX) && key.length() > RAW_PREFIX.length()) {
             return new RawKey(key.substring(RAW_PREFIX.length()));
+        }
+        if (key.startsWith(STATUS_PREFIX)) {
+            try {
+                return new StatusKey(com.mykyntus.entity.FieldSection.valueOf(key.substring(STATUS_PREFIX.length())));
+            } catch (IllegalArgumentException ignored) {
+                // falls through to the error below
+            }
         }
         if (key.startsWith(FIELD_PREFIX)) {
             try {

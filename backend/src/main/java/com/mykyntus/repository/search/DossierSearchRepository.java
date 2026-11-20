@@ -79,6 +79,9 @@ public class DossierSearchRepository {
         if (key instanceof ColumnKey.FlagsKey) {
             return flagFacets(request, keyValue, text, limit);
         }
+        if (key instanceof ColumnKey.StatusKey(FieldSection section)) {
+            return statusFacets(request, keyValue, section);
+        }
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> cq = cb.createTupleQuery();
         List<Predicate> where = new ArrayList<>();
@@ -132,6 +135,7 @@ public class DossierSearchRepository {
                 order.add(cb.asc(assignee));
             }
             case ColumnKey.FlagsKey ignored -> throw new IllegalStateException("handled by flagFacets");
+            case ColumnKey.StatusKey ignored -> throw new IllegalStateException("handled by statusFacets");
             case ColumnKey.FieldKey(Long fieldId) -> {
                 Root<DossierFieldValue> v = cq.from(DossierFieldValue.class);
                 Join<DossierFieldValue, Dossier> d = v.join("dossier");
@@ -236,13 +240,19 @@ public class DossierSearchRepository {
         boolean includeEmpty = values.stream().anyMatch(v -> v == null || v.isBlank());
         List<String> nonEmpty = values.stream().filter(v -> v != null && !v.isBlank()).distinct().toList();
         String text = TextUtils.trimToNull(filter.text());
+        FilterOp op = FilterOp.parse(filter.op());
+        if (filter.op() == null && text == null && (filter.from() != null || filter.to() != null)) {
+            op = FilterOp.BETWEEN;
+        }
 
         List<Predicate> parts = new ArrayList<>();
         if (includeEmpty || !nonEmpty.isEmpty()) {
             parts.add(valuesPredicate(cb, query, d, key, nonEmpty, includeEmpty));
         }
-        if (text != null) {
-            Predicate p = textPredicate(cb, query, d, key, text);
+        boolean hasCondition = op.needsText() ? text != null
+                : op != FilterOp.BETWEEN || TextUtils.trimToNull(filter.from()) != null || TextUtils.trimToNull(filter.to()) != null;
+        if (hasCondition && !(key instanceof ColumnKey.StatusKey)) {
+            Predicate p = conditionPredicate(cb, query, d, key, op, text, parseDate(filter.from()), parseDate(filter.to()));
             if (p != null) {
                 parts.add(p);
             }
@@ -259,6 +269,13 @@ public class DossierSearchRepository {
                 yield dates.isEmpty() ? cb.disjunction() : d.get("dossierDate").in(dates);
             }
             case ColumnKey.IdKey ignored -> values.isEmpty() ? cb.disjunction() : d.get("idExterne").in(values);
+            case ColumnKey.StatusKey(FieldSection section) -> {
+                List<Predicate> or = new ArrayList<>();
+                for (String v : values) {
+                    or.add(statusPredicate(cb, query, d, section, v));
+                }
+                yield cb.or(or.toArray(Predicate[]::new));
+            }
             case ColumnKey.FlagsKey ignored -> {
                 List<Predicate> or = new ArrayList<>();
                 Expression<String> flags = d.get("flags");
@@ -303,20 +320,183 @@ public class DossierSearchRepository {
         };
     }
 
-    private Predicate textPredicate(CriteriaBuilder cb, CommonAbstractCriteria query, From<?, Dossier> d,
-                                    ColumnKey key, String text) {
-        String pattern = likePattern(text);
+    /**
+     * Condition filter (contains, does not contain, equals, starts with, empty, date range...).
+     * Negative conditions are "NOT (positive)" so the dossiers without value match them.
+     */
+    private Predicate conditionPredicate(CriteriaBuilder cb, CommonAbstractCriteria query, From<?, Dossier> d,
+                                         ColumnKey key, FilterOp op, String text, LocalDate from, LocalDate to) {
+        FilterOp positive = op.positive();
         Path<Long> id = d.get("id");
-        return switch (key) {
-            case ColumnKey.DateKey ignored -> null;
-            case ColumnKey.IdKey ignored -> cb.like(cb.lower(d.get("idExterne")), pattern, LIKE_ESCAPE);
-            case ColumnKey.FlagsKey ignored -> cb.like(cb.lower(d.get("flags")), pattern, LIKE_ESCAPE);
-            case ColumnKey.AssigneeKey ignored -> cb.like(cb.lower(d.get("assignedTo")), pattern, LIKE_ESCAPE);
+        Predicate p = switch (key) {
+            case ColumnKey.DateKey ignored -> {
+                Expression<LocalDate> date = d.get("dossierDate");
+                if (positive == FilterOp.BETWEEN || positive == FilterOp.EQUALS) {
+                    LocalDate f = positive == FilterOp.EQUALS ? parseDate(text) : from;
+                    LocalDate t = positive == FilterOp.EQUALS ? f : to;
+                    List<Predicate> and = new ArrayList<>();
+                    if (f != null) and.add(cb.greaterThanOrEqualTo(date, f));
+                    if (t != null) and.add(cb.lessThanOrEqualTo(date, t));
+                    yield and.isEmpty() ? null : cb.and(and.toArray(Predicate[]::new));
+                }
+                yield null;
+            }
+            case ColumnKey.IdKey ignored -> direct(cb, d.get("idExterne"), positive, text, from, to, false);
+            case ColumnKey.FlagsKey ignored -> direct(cb, d.get("flags"), positive, text, from, to, false);
+            case ColumnKey.AssigneeKey ignored -> direct(cb, d.get("assignedTo"), positive, text, from, to, false);
+            case ColumnKey.StatusKey ignored -> null;
             case ColumnKey.RawKey(String column) ->
-                    id.in(rawIds(cb, query, column, r -> cb.like(cb.lower(r.value()), pattern, LIKE_ESCAPE)));
+                    id.in(rawIds(cb, query, column, r -> textCondition(cb, r.value(), positive, text, from, to, true)));
             case ColumnKey.FieldKey(Long fieldId) ->
-                    id.in(fieldIds(cb, query, fieldId, v -> cb.like(cb.lower(v), pattern, LIKE_ESCAPE)));
+                    id.in(fieldIds(cb, query, fieldId, v -> textCondition(cb, v, positive, text, from, to, false)));
         };
+        if (p == null) {
+            return null;
+        }
+        if (!op.negative()) {
+            return p;
+        }
+        // values stored on the dossier itself: an empty value also matches a negative condition
+        return switch (key) {
+            case ColumnKey.IdKey ignored -> cb.not(p);
+            case ColumnKey.FlagsKey ignored -> cb.or(noFlags(cb, d), cb.not(p));
+            case ColumnKey.AssigneeKey ignored -> cb.or(cb.isNull(d.get("assignedTo")), cb.not(p));
+            default -> cb.not(p);
+        };
+    }
+
+    private Predicate direct(CriteriaBuilder cb, Expression<String> value, FilterOp op, String text,
+                             LocalDate from, LocalDate to, boolean frenchDates) {
+        return textCondition(cb, value, op, text, from, to, frenchDates);
+    }
+
+    /**
+     * Positive condition on a text value.
+     *
+     * @param frenchDates imported values are written "dd/MM/yyyy [HH:mm]": a date range compares them
+     *                    rewritten as yyyy-MM-dd (application DATE values are already ISO)
+     */
+    private Predicate textCondition(CriteriaBuilder cb, Expression<String> value, FilterOp op, String text,
+                                    LocalDate from, LocalDate to, boolean frenchDates) {
+        Expression<String> lower = cb.lower(value);
+        String t = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return switch (op) {
+            case CONTAINS -> cb.like(lower, "%" + escapeLike(t) + "%", LIKE_ESCAPE);
+            case EQUALS -> cb.equal(cb.trim(lower), t.trim());
+            case STARTS_WITH -> cb.like(lower, escapeLike(t) + "%", LIKE_ESCAPE);
+            case ENDS_WITH -> cb.like(lower, "%" + escapeLike(t), LIKE_ESCAPE);
+            case NOT_EMPTY -> cb.and(cb.isNotNull(value), cb.notEqual(cb.trim(value), ""));
+            case BETWEEN -> {
+                Expression<String> iso = value;
+                List<Predicate> and = new ArrayList<>();
+                if (frenchDates) {
+                    // "20/11/2026 16:00" -> "2026-11-20"
+                    and.add(cb.like(value, "__/__/____%"));
+                    iso = cb.concat(cb.concat(cb.concat(cb.concat(cb.substring(value, 7, 4), "-"), cb.substring(value, 4, 2)), "-"),
+                            cb.substring(value, 1, 2));
+                } else {
+                    iso = cb.substring(value, 1, 10);
+                    and.add(cb.like(value, "____-__-__%"));
+                }
+                if (from != null) and.add(cb.greaterThanOrEqualTo(iso, from.toString()));
+                if (to != null) and.add(cb.lessThanOrEqualTo(iso, to.toString()));
+                yield cb.and(and.toArray(Predicate[]::new));
+            }
+            default -> throw new IllegalStateException("negative condition " + op);
+        };
+    }
+
+    // ------------------------------------------------------------------ progress (status)
+
+    /** UNTOUCHED / IN_PROGRESS / DONE of a section. */
+    private Predicate statusPredicate(CriteriaBuilder cb, CommonAbstractCriteria query, From<?, Dossier> d,
+                                      FieldSection section, String status) {
+        Path<Long> id = d.get("id");
+        return switch (status == null ? "" : status.toUpperCase(Locale.ROOT)) {
+            case "UNTOUCHED" -> cb.not(id.in(touchedIds(cb, query, section)));
+            case "IN_PROGRESS" -> cb.and(id.in(touchedIds(cb, query, section)), cb.not(id.in(doneIds(cb, query, section))));
+            case "DONE" -> id.in(doneIds(cb, query, section));
+            default -> throw com.mykyntus.exception.ApiException.badRequest("Statut inconnu : " + status);
+        };
+    }
+
+    /** Dossiers with at least one value in the section. */
+    private Subquery<Long> touchedIds(CriteriaBuilder cb, CommonAbstractCriteria query, FieldSection section) {
+        Subquery<Long> sq = query.subquery(Long.class);
+        Root<DossierFieldValue> v = sq.from(DossierFieldValue.class);
+        Join<DossierFieldValue, AppField> f = v.join("field");
+        sq.select(v.get("dossier").get("id")).where(
+                cb.equal(f.get("section"), section), cb.isTrue(f.get("active")),
+                cb.isNotNull(v.get("value")), cb.notEqual(v.get("value"), ""));
+        return sq;
+    }
+
+    /** Dossiers whose required fields of the section are all filled (see {@link #requiredFields}). */
+    private Subquery<Long> doneIds(CriteriaBuilder cb, CommonAbstractCriteria query, FieldSection section) {
+        List<Long> required = requiredFields(section);
+        Subquery<Long> sq = query.subquery(Long.class);
+        Root<DossierFieldValue> v = sq.from(DossierFieldValue.class);
+        if (required.isEmpty()) {
+            // nothing to fill: never "done"
+            sq.select(v.get("dossier").get("id")).where(cb.disjunction());
+            return sq;
+        }
+        Expression<Long> dossierId = v.get("dossier").get("id");
+        sq.select(dossierId)
+                .where(v.get("field").get("id").in(required), cb.isNotNull(v.get("value")), cb.notEqual(v.get("value"), ""))
+                .groupBy(dossierId)
+                .having(cb.equal(cb.countDistinct(v.get("field").get("id")), (long) required.size()));
+        return sq;
+    }
+
+    /**
+     * Fields that must be filled for a section to be "done": its final field when it has one
+     * (published, e.g. "Etat final" for Sécurisation), otherwise all its dropdown lists.
+     * Free text, automatic date and pilot are never required.
+     */
+    public List<Long> requiredFields(FieldSection section) {
+        List<AppField> fields = em.createQuery("select f from AppField f where f.active = true and f.section = :s", AppField.class)
+                .setParameter("s", section).getResultList();
+        List<Long> published = fields.stream().filter(AppField::isPublished).map(AppField::getId).toList();
+        if (!published.isEmpty()) {
+            return published;
+        }
+        return fields.stream().filter(f -> f.getType() == com.mykyntus.entity.FieldType.SELECT).map(AppField::getId).toList();
+    }
+
+    /** Ids of the active fields of a section (any value = "touched"). */
+    public List<Long> activeFields(FieldSection section) {
+        return em.createQuery("select f.id from AppField f where f.active = true and f.section = :s", Long.class)
+                .setParameter("s", section).getResultList();
+    }
+
+    private FacetResult statusFacets(DossierSearchRequest request, String keyValue, FieldSection section) {
+        List<FacetValue> values = new ArrayList<>();
+        for (String status : List.of("UNTOUCHED", "IN_PROGRESS", "DONE")) {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+            Root<Dossier> d = cq.from(Dossier.class);
+            List<Predicate> where = new ArrayList<>(Arrays.asList(predicates(cb, cq, d, request, keyValue)));
+            where.add(statusPredicate(cb, cq, d, section, status));
+            cq.select(cb.count(d)).where(where.toArray(Predicate[]::new));
+            values.add(new FacetValue(status, em.createQuery(cq).getSingleResult()));
+        }
+        return new FacetResult(values, 0, false);
+    }
+
+    /** Per section: dossiers "done" (every required field filled). */
+    public Map<FieldSection, Long> doneBySection(DossierSearchRequest request) {
+        Map<FieldSection, Long> result = new EnumMap<>(FieldSection.class);
+        for (FieldSection section : FieldSection.values()) {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+            Root<Dossier> d = cq.from(Dossier.class);
+            List<Predicate> where = new ArrayList<>(Arrays.asList(predicates(cb, cq, d, request, null)));
+            where.add(d.get("id").in(doneIds(cb, cq, section)));
+            cq.select(cb.count(d)).where(where.toArray(Predicate[]::new));
+            result.put(section, em.createQuery(cq).getSingleResult());
+        }
+        return result;
     }
 
     /** {@code select d.id from Dossier d join d.rawData r where key(r) = :column and <condition>}. */
@@ -349,6 +529,7 @@ public class DossierSearchRepository {
                 case ColumnKey.IdKey ignored -> d.get("idExterne");
                 case ColumnKey.FlagsKey ignored -> d.get("flags");
                 case ColumnKey.AssigneeKey ignored -> d.get("assignedTo");
+                case ColumnKey.StatusKey ignored -> throw com.mykyntus.exception.ApiException.badRequest("Tri impossible sur l'avancement");
                 case ColumnKey.RawKey(String column) -> {
                     MapJoin<Dossier, String, String> r = d.joinMap("rawData", JoinType.LEFT);
                     r.on(cb.equal(r.key(), column));
@@ -462,6 +643,18 @@ public class DossierSearchRepository {
                 .replace("%", "\\%")
                 .replace("_", "\\_");
         return "%" + escaped + "%";
+    }
+
+    private static LocalDate parseDate(String value) {
+        String v = TextUtils.trimToNull(value);
+        if (v == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(v.length() > 10 ? v.substring(0, 10) : v);
+        } catch (DateTimeParseException e) {
+            throw com.mykyntus.exception.ApiException.badRequest("Date invalide : " + value);
+        }
     }
 
     private static List<LocalDate> parseDates(List<String> values) {

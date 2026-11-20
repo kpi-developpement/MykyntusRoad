@@ -10,6 +10,7 @@ import { useFocusOnMount } from "../../../hooks/useFocusOnMount";
 import { cn } from "../../../utils/cn";
 import type { ColumnFilter, FacetResponse, FacetValue } from "../../../types";
 import type { GridColumn } from "../DataGrid/types";
+import { ConditionFilter } from "./ConditionFilter";
 
 interface FilterPopoverProps<T> {
   anchor: HTMLElement | null;
@@ -22,7 +23,7 @@ interface FilterPopoverProps<T> {
   loadFacets: (key: string, q: string) => Promise<FacetResponse>;
 }
 
-/** Excel-like column filter: sort, search, values with counts, "contains" filter. */
+/** Excel-like column filter: sort, search, values with counts, conditions (text / date range). */
 export function FilterPopover<T>(props: FilterPopoverProps<T>) {
   return (
     <Popover anchor={props.anchor} open={!!props.anchor} onClose={props.onClose} width={316}>
@@ -32,7 +33,7 @@ export function FilterPopover<T>(props: FilterPopoverProps<T>) {
 }
 
 function FilterPanel<T>({ column, filter, sortDir, onSort, onApply, onClose, loadFacets }: FilterPopoverProps<T>) {
-  const [q, setQ] = useState(filter?.text ?? "");
+  const [q, setQ] = useState(filter?.op ? "" : (filter?.text ?? ""));
   const [debouncedQ, setDebouncedQ] = useState(q);
   const [result, setResult] = useState<{ q: string; data: FacetResponse | null; error: string | null } | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(() => (filter?.values?.length ? new Set(filter.values) : null));
@@ -114,11 +115,11 @@ function FilterPanel<T>({ column, filter, sortDir, onSort, onApply, onClose, loa
     onClose();
   }
 
-  const hasFilter = !!filter && (!!filter.text || (filter.values?.length ?? 0) > 0);
+  const hasFilter = !!filter && (!!filter.text || !!filter.op || !!filter.from || !!filter.to || (filter.values?.length ?? 0) > 0);
   const label = (v: string) => (v === "" ? <span className="text-slate-400 italic">(Vides)</span> : (column.renderValue?.(v) ?? <span className="truncate">{v}</span>));
 
   return (
-    <div className="flex max-h-[min(560px,80vh)] flex-col">
+    <div className="scroll-thin flex max-h-[min(640px,85vh)] flex-col overflow-y-auto">
       <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
         <p className="truncate font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase">{column.label}</p>
         {hasFilter && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">Filtré</span>}
@@ -191,7 +192,7 @@ function FilterPanel<T>({ column, filter, sortDir, onSort, onApply, onClose, loa
               {debouncedQ ? "Sélectionner les résultats" : "Tout sélectionner"}
               <span className="ml-auto font-medium text-slate-400 tabular-nums">{entries.length}</span>
             </button>
-            <ul className={cn("scroll-thin max-h-64 overflow-y-auto px-1.5 pb-1.5 transition-opacity", loading && "opacity-50")}>
+            <ul className={cn("scroll-thin max-h-52 overflow-y-auto px-1.5 pb-1.5 transition-opacity", loading && "opacity-50")}>
               {entries.map((e) => {
                 const checked = isChecked(e.value);
                 return (
@@ -231,6 +232,16 @@ function FilterPanel<T>({ column, filter, sortDir, onSort, onApply, onClose, loa
           </button>
         </div>
       )}
+
+      <ConditionFilter
+        columnKey={column.key}
+        kind={column.filterKind ?? "text"}
+        filter={filter}
+        onApply={(f) => {
+          onApply(f);
+          onClose();
+        }}
+      />
 
       <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-3 py-2.5">
         <Button1

@@ -11,6 +11,7 @@ import { findNavItem } from "../../../utils/nav";
 import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
 import { IconButton } from "../../button/IconButton/IconButton";
 import { LiveDot } from "../../feedback/LiveDot/LiveDot";
+import { FlagLegendButton } from "../../flag/FlagLegend/FlagLegend";
 import { DropdownMenu } from "../../menu/DropdownMenu/DropdownMenu";
 
 export function Topbar() {
@@ -59,6 +60,7 @@ export function Topbar() {
         <IconButton label="Rechercher" className="md:hidden" onClick={() => setPaletteOpen(true)}>
           <Search />
         </IconButton>
+        <FlagLegendButton />
 
         <span className="hidden h-10 items-center gap-2 rounded-xl bg-emerald-50/80 px-3 font-mono text-[10px] font-medium tracking-[0.16em] text-emerald-700 uppercase ring-1 ring-emerald-200/80 ring-inset 2xl:flex">
           <LiveDot /> Synchronisé

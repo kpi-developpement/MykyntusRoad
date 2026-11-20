@@ -27,6 +27,7 @@ export function flagsColumn({ editable, codes, onApply, onReset }: FlagColumnOpt
   return {
     key: "flags",
     label: "Drapeaux",
+    filterKind: "enum",
     width: 210,
     sortable: true,
     filterable: true,
@@ -47,6 +48,7 @@ export function assigneeColumn({ pilotes, editable, onAssign }: AssigneeColumnOp
   return {
     key: "assignee",
     label: "Pilote assigné",
+    filterKind: "enum",
     width: 190,
     sortable: true,
     filterable: true,
@@ -66,6 +68,7 @@ export function dateColumn(pinned = true): GridColumn<DossierRow> {
   return {
     key: "date",
     label: "Date",
+    filterKind: "date",
     width: 138,
     pinned,
     sortable: true,
@@ -104,6 +107,7 @@ export function rawColumn(column: SourceColumn, options: { groupId?: string; def
   return {
     key: `raw:${column.name}`,
     label: column.label,
+    filterKind: looksLikeDate(column.label) ? "date" : "text",
     groupId: options.groupId,
     defaultHidden: options.defaultHidden,
     width: Math.min(260, Math.max(150, column.label.length * 8 + 60)),
@@ -120,6 +124,12 @@ export function rawColumn(column: SourceColumn, options: { groupId?: string; def
       );
     },
   };
+}
+
+/** Imported columns holding dates ("Début planifié", "Date de RDV"...) get the date range filter. */
+function looksLikeDate(label: string): boolean {
+  const l = label.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return /\b(date|debut|fin|heure|planifi|cree|creation|echeance|rdv|jour)/.test(l);
 }
 
 export const ID_EXTERNE_HEADER = "ordre de travail: id externe";

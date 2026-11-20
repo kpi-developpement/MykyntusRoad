@@ -225,7 +225,7 @@ export function SuiviView({
 
       <FlagStrip grid={grid} />
 
-      <DossierGridPanel gridId={gridId} grid={grid} columns={columns} groups={groups} emptyAction={emptyAction} />
+      <DossierGridPanel gridId={gridId} grid={grid} columns={columns} groups={groups} emptyAction={emptyAction} progressSections={sections} />
 
       <DossierDrawer
         row={details}

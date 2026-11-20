@@ -35,7 +35,7 @@ export function ColumnHeader<T>({
 }: ColumnHeaderProps<T>) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const sortDir = sort?.key === column.key ? sort.direction : null;
-  const filtered = !!filter && (!!filter.text || (filter.values?.length ?? 0) > 0);
+  const filtered = !!filter && (!!filter.text || !!filter.op || !!filter.from || !!filter.to || (filter.values?.length ?? 0) > 0);
 
   const cycleSort = () =>
     onSortChange(
