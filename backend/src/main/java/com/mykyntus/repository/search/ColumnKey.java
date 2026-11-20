@@ -9,6 +9,8 @@ import com.mykyntus.exception.ApiException;
  *   <li>{@code idExterne} : Ordre de travail: ID Externe</li>
  *   <li>{@code raw:<column name>} : a column of the imported files</li>
  *   <li>{@code field:<id>} : an application column (J-1 / J / J+1)</li>
+ *   <li>{@code flags} : flags of the dossier (P1, SECU...)</li>
+ *   <li>{@code assignee} : sécurisation pilot the dossier is dispatched to</li>
  * </ul>
  */
 public sealed interface ColumnKey {
@@ -17,6 +19,8 @@ public sealed interface ColumnKey {
     String ID_EXTERNE = "idExterne";
     String RAW_PREFIX = "raw:";
     String FIELD_PREFIX = "field:";
+    String FLAGS = "flags";
+    String ASSIGNEE = "assignee";
 
     record DateKey() implements ColumnKey {
     }
@@ -30,6 +34,12 @@ public sealed interface ColumnKey {
     record FieldKey(Long fieldId) implements ColumnKey {
     }
 
+    record FlagsKey() implements ColumnKey {
+    }
+
+    record AssigneeKey() implements ColumnKey {
+    }
+
     static ColumnKey parse(String key) {
         if (key == null || key.isBlank()) {
             throw ApiException.badRequest("Colonne manquante");
@@ -39,6 +49,12 @@ public sealed interface ColumnKey {
         }
         if (ID_EXTERNE.equals(key)) {
             return new IdKey();
+        }
+        if (FLAGS.equals(key)) {
+            return new FlagsKey();
+        }
+        if (ASSIGNEE.equals(key)) {
+            return new AssigneeKey();
         }
         if (key.startsWith(RAW_PREFIX) && key.length() > RAW_PREFIX.length()) {
             return new RawKey(key.substring(RAW_PREFIX.length()));

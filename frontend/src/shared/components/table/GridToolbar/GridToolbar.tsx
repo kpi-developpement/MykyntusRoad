@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignJustify, FilterX, RefreshCw, StretchHorizontal } from "lucide-react";
+import { AlignJustify, FileDown, FilterX, RefreshCw, StretchHorizontal } from "lucide-react";
 import type { DossierGrid } from "../../../hooks/useDossierGrid";
 import type { GridPreferencesApi } from "../../../hooks/useGridPreferences";
 import type { DossierRow } from "../../../types";
@@ -17,9 +17,11 @@ interface GridToolbarProps {
   columns: GridColumn<DossierRow>[];
   groups?: GridGroup[];
   prefs: GridPreferencesApi;
+  onExport?: () => void;
+  exporting?: boolean;
 }
 
-export function GridToolbar({ grid, columns, groups, prefs }: GridToolbarProps) {
+export function GridToolbar({ grid, columns, groups, prefs, onExport, exporting }: GridToolbarProps) {
   const filterCount = grid.criteria.filters.length + (grid.criteria.search ? 1 : 0);
   const compact = prefs.density === "compact";
 
@@ -48,6 +50,11 @@ export function GridToolbar({ grid, columns, groups, prefs }: GridToolbarProps) 
         >
           {compact ? <StretchHorizontal /> : <AlignJustify />}
         </IconButton>
+        {onExport && (
+          <IconButton variant="secondary" label="Exporter en Excel (colonnes affichées, drapeaux inclus)" onClick={onExport} disabled={exporting}>
+            <FileDown className={cn(exporting && "animate-bounce")} />
+          </IconButton>
+        )}
         <IconButton variant="secondary" label="Actualiser" onClick={grid.reload}>
           <RefreshCw className={cn(grid.loading && "animate-spin")} />
         </IconButton>

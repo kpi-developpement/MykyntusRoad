@@ -11,5 +11,9 @@ public enum EventType {
     /** A user (or the auto fill) set / changed an application value. */
     VALUE_SET,
     /** A user cleared an application value. */
-    VALUE_CLEARED
+    VALUE_CLEARED,
+    /** Flags of the dossier changed by hand (or reset to the automatic ones). */
+    FLAGS_CHANGED,
+    /** Dossier assigned to a sécurisation pilot (dispatch) or unassigned. */
+    ASSIGNED
 }

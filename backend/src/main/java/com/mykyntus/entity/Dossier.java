@@ -13,7 +13,8 @@ import java.util.Map;
 /** One line of the imported file = one dossier, identified by "Ordre de travail: ID Externe". */
 @Entity
 @Table(name = "dossier", indexes = {
-        @Index(name = "idx_dossier_date", columnList = "dossierDate")
+        @Index(name = "idx_dossier_date", columnList = "dossierDate"),
+        @Index(name = "idx_dossier_assigned", columnList = "assignedTo")
 })
 @Getter
 @Setter
@@ -55,4 +56,21 @@ public class Dossier {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     private LocalDateTime updatedAt;
+
+    /** Effective flags, stored as "|P1|SECU|" (empty string = no flag) so they can be filtered with LIKE. */
+    @Column(length = 600)
+    private String flags;
+
+    /** True once a user changed the flags by hand: imports no longer recompute them. Null for existing rows. */
+    private Boolean flagsManual;
+
+    /** Username of the sécurisation pilot the dossier is dispatched to. */
+    @Column(length = 100)
+    private String assignedTo;
+
+    private LocalDateTime assignedAt;
+
+    public boolean isFlagsManual() {
+        return Boolean.TRUE.equals(flagsManual);
+    }
 }

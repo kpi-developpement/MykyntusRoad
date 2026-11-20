@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { FilterX } from "lucide-react";
+import { dossierService } from "../../../services/dossierService";
+import { useToast } from "../../toast/ToastProvider/ToastProvider";
 import type { DossierGrid } from "../../../hooks/useDossierGrid";
 import { useGridPreferences } from "../../../hooks/useGridPreferences";
 import type { DossierRow } from "../../../types";
@@ -31,10 +34,29 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
   const visible = columns.filter((c) => prefs.isVisible(c));
   const rows = grid.data?.rows;
   const filtered = grid.criteria.filters.length > 0 || !!grid.criteria.search;
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+
+  async function exportExcel() {
+    const titles = new Map((groups ?? []).map((g) => [g.id, g.title]));
+    const cols = visible.map((c) => {
+      const group = c.groupId ? titles.get(c.groupId) : undefined;
+      return { key: c.key, label: group && !c.key.startsWith("raw:") ? `${group} · ${c.label}` : c.label };
+    });
+    setExporting(true);
+    try {
+      await dossierService.exportExcel(grid.criteria, cols);
+      toast.success("Export Excel prêt", `${rows?.totalElements ?? 0} dossier(s) · ${cols.length} colonnes`);
+    } catch (e) {
+      toast.error("Export impossible", e instanceof Error ? e.message : undefined);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <Surface as="section" className="overflow-hidden rounded-3xl">
-      <GridToolbar grid={grid} columns={columns} groups={groups} prefs={prefs} />
+      <GridToolbar grid={grid} columns={columns} groups={groups} prefs={prefs} onExport={exportExcel} exporting={exporting} />
       <FilterChips
         filters={grid.criteria.filters}
         columns={columns}

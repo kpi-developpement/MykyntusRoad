@@ -119,6 +119,15 @@
   from { stroke-dashoffset: 44; }
   to { stroke-dashoffset: 0; }
 }
+@keyframes floor-flow {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 72px, 0); }
+}
+/* Éclats de la célébration après un dispatch (transform / opacity uniquement). */
+@keyframes burst {
+  0% { transform: translate3d(0, 0, 0) scale(0.4); opacity: 1; }
+  100% { transform: translate3d(var(--bx), var(--by), 0) scale(1) rotate(var(--br)); opacity: 0; }
+}
 @keyframes beam {
   0% { transform: translate3d(0, -160px, 0); }
   55%, 100% { transform: translate3d(0, 110vh, 0); }
@@ -320,6 +329,88 @@
     background: linear-gradient(to bottom, transparent, #7dd3fc, transparent);
     animation: beam 7s linear infinite;
     will-change: transform;
+  }
+
+  /* ---------------------------------------------------------------- sidebar */
+
+  /* Barre latérale fine qui s'ouvre au survol : seul le clip-path change (aucun reflow de la page). */
+  .sidebar-reveal {
+    clip-path: inset(0 192px 0 0);
+    transition: clip-path 0.36s var(--ease-out-expo);
+  }
+  .sidebar-reveal[data-open="true"] {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* ---------------------------------------------------------------- 3D */
+
+  /*
+   * Sol en grille 3D qui défile vers l'utilisateur, derrière le contenu.
+   * Un seul calque GPU : le plan est incliné une fois (rotateX), seule sa texture glisse (translate3d).
+   */
+  .grid-floor {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    perspective: 560px;
+    perspective-origin: 50% 0%;
+    contain: strict;
+  }
+  .grid-floor-plane {
+    position: absolute;
+    left: -60%;
+    right: -60%;
+    top: 52%;
+    height: 120%;
+    transform: rotateX(74deg);
+    transform-origin: 50% 0;
+    overflow: hidden;
+  }
+  .grid-floor-lines {
+    position: absolute;
+    inset: -72px 0 0 0;
+    background-image:
+      linear-gradient(rgb(37 72 234 / 0.2) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, rgb(37 72 234 / 0.2) 1.5px, transparent 1.5px);
+    background-size: 72px 72px;
+    animation: floor-flow 4s linear infinite;
+    will-change: transform;
+  }
+  /* fondu vers l'horizon + lueur (calque statique au-dessus de la grille) */
+  .grid-floor-fade {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(60% 18% at 50% 52%, rgb(56 189 248 / 0.18), transparent 70%),
+      linear-gradient(to bottom, var(--color-canvas) 0%, var(--color-canvas) 50%, rgb(243 246 253 / 0.55) 66%, transparent 100%);
+  }
+
+  /* Carte inclinable en 3D (variables --rx / --ry posées par useTilt, sans re-render React). */
+  .tilt {
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 0.6s var(--ease-out-expo);
+  }
+  .tilt[data-tilting="true"] {
+    transition-duration: 0.12s;
+    will-change: transform;
+  }
+  .tilt-pop {
+    transform: translateZ(28px);
+  }
+  .tilt-glare {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 50%), rgb(255 255 255 / 0.55), transparent 42%);
+    transition: opacity 0.4s var(--ease-out-expo);
+    mix-blend-mode: soft-light;
+  }
+  .tilt[data-tilting="true"] .tilt-glare {
+    opacity: 1;
   }
 
   /* Squelettes de chargement. */

@@ -101,7 +101,7 @@ class ImportFlowIntegrationTest {
         CurrentUser secPilot = new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION);
 
         // identifier found by its "EPS" header, kept out of the columns; unknown dossier created
-        ImportResultResponse sec = importService.importSecurisation(1, secFile(), "admin.secu");
+        ImportResultResponse sec = importService.importSecurisation(1, secFile(), null, "admin.secu");
         assertThat(sec.updatedRows()).isEqualTo(1);
         assertThat(sec.createdRows()).isEqualTo(1);
         assertThat(sec.columns()).containsExactly("Département client", "Commentaire source");

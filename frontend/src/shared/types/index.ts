@@ -1,8 +1,8 @@
 export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PILOTE_J";
 export type FieldSection = "SECURISATION" | "J_MINUS_1" | "J" | "J_PLUS_1";
 export type FieldType = "SELECT" | "TEXT" | "DATE" | "USER";
-/** Main daily file or one of the 3 sécurisation files. */
-export type DataSource = "MAIN" | "SEC_1" | "SEC_2" | "SEC_3";
+/** Main daily file, the global sécurisation file or one of the 3 sécurisation files. */
+export type DataSource = "MAIN" | "SEC_GLOBAL" | "SEC_1" | "SEC_2" | "SEC_3";
 
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrateur",
@@ -25,9 +25,10 @@ export const MAIN_SECTIONS: FieldSection[] = ["J_MINUS_1", "J", "J_PLUS_1"];
 /** Work of the sécurisation team. */
 export const SECURISATION_SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1"];
 
-export const SEC_SOURCES: DataSource[] = ["SEC_1", "SEC_2", "SEC_3"];
+export const SEC_SOURCES: DataSource[] = ["SEC_GLOBAL", "SEC_1", "SEC_2", "SEC_3"];
 export const SOURCE_LABELS: Record<DataSource, string> = {
   MAIN: "Fichier principal",
+  SEC_GLOBAL: "Fichier global",
   SEC_1: "Fichier sécurisation 1",
   SEC_2: "Fichier sécurisation 2",
   SEC_3: "Fichier sécurisation 3",
@@ -85,6 +86,12 @@ export interface DossierRow {
   date: string;
   raw: Record<string, string>;
   values: Record<string, string>;
+  /** Flag codes (P1, SECU...), in display order. */
+  flags: string[];
+  /** Flags changed by hand (no longer detected automatically). */
+  flagsManual: boolean;
+  /** Sécurisation pilot the dossier is dispatched to (username). */
+  assignedTo: string | null;
 }
 
 export interface Page<T> {
@@ -101,7 +108,7 @@ export interface DossierTable {
   rows: Page<DossierRow>;
 }
 
-/** Column keys: "date", "idExterne", "raw:<column name>", "field:<id>". */
+/** Column keys: "date", "idExterne", "flags", "assignee", "raw:<column name>", "field:<id>". */
 export interface ColumnFilter {
   key: string;
   /** Accepted values ("" = empty). */
@@ -190,7 +197,7 @@ export interface SecSource {
   visible: number;
 }
 
-export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED";
+export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED" | "FLAGS_CHANGED" | "ASSIGNED";
 export type StageStatus = "DONE" | "CURRENT" | "PENDING";
 
 export interface TimelineStage {
@@ -224,4 +231,70 @@ export interface DossierTimeline {
   stages: TimelineStage[];
   edits: number;
   events: TimelineEvent[];
+}
+
+// ------------------------------------------------------------------ flags
+
+/** Colour keys: predefined flags + the 5 colours offered for custom flags. */
+export type FlagColor =
+  | "RED" | "ORANGE" | "VIOLET" | "AMBER" | "BLUE" | "TURQUOISE" | "EMERALD" | "CYAN" | "PINK" | "INDIGO" | "LIME"
+  | "VIOLET_VIF" | "FUCHSIA" | "BLEU_CIEL" | "ARDOISE" | "PIERRE";
+
+export const CUSTOM_FLAG_COLORS: { value: FlagColor; label: string }[] = [
+  { value: "VIOLET_VIF", label: "Violet vif" },
+  { value: "FUCHSIA", label: "Fuchsia" },
+  { value: "BLEU_CIEL", label: "Bleu ciel" },
+  { value: "ARDOISE", label: "Ardoise" },
+  { value: "PIERRE", label: "Pierre" },
+];
+
+export interface Flag {
+  id: number;
+  code: string;
+  label: string;
+  color: FlagColor;
+  builtin: boolean;
+  position: number;
+}
+
+export interface DossierFlags {
+  dossierId: number;
+  flags: string[];
+  manual: boolean;
+}
+
+// ------------------------------------------------------------------ sécurisation team
+
+export interface Pilote {
+  id: number;
+  username: string;
+  fullName: string | null;
+  active: boolean;
+  createdAt: string;
+  /** Dossiers dispatched to him (every date). */
+  assigned: number;
+  /** Of which "Etat final" is filled. */
+  treated: number;
+}
+
+export interface PiloteLoad {
+  username: string;
+  fullName: string | null;
+  active: boolean;
+  assigned: number;
+  treated: number;
+  flags: Record<string, number>;
+}
+
+export interface DispatchSummary {
+  total: number;
+  treated: number;
+  unassigned: number;
+  unassignedFlags: Record<string, number>;
+  pilotes: PiloteLoad[];
+}
+
+export interface DispatchResult {
+  moved: number;
+  summary: DispatchSummary | null;
 }

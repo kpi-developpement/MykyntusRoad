@@ -41,13 +41,14 @@ public class ImportService {
     private static final int CHUNK_SIZE = 1000;
     private static final int MAX_DETAIL_LINES = 8;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("xlsx", "xls", "xlsm");
-    private static final List<DataSource> SEC_SOURCES = List.of(DataSource.SEC_1, DataSource.SEC_2, DataSource.SEC_3);
+    private static final List<DataSource> SEC_SOURCES = List.of(DataSource.SEC_GLOBAL, DataSource.SEC_1, DataSource.SEC_2, DataSource.SEC_3);
 
     private final ExcelParser excelParser;
     private final DossierRepository dossierRepository;
     private final DossierEventRepository eventRepository;
     private final ImportBatchRepository batchRepository;
     private final SourceColumnRepository sourceColumnRepository;
+    private final FlagService flagService;
 
     /** Main daily file. @param forcedDate optional date applied to every dossier of the file */
     @Transactional
@@ -55,13 +56,18 @@ public class ImportService {
         return importFile(file, DataSource.MAIN, forcedDate, username);
     }
 
-    /** Sécurisation file 1, 2 or 3: its columns are stored apart ("S1::...") and shown in the sécurisation space. */
+    /**
+     * Sécurisation file 1, 2 or 3 (columns stored apart, "S1::...") or the global file (slot 0, "G::..."):
+     * the global file holds every dossier of the day with the flag columns.
+     *
+     * @param forcedDate optional date applied to the dossiers (global file only)
+     */
     @Transactional
-    public ImportResultResponse importSecurisation(int slot, MultipartFile file, String username) {
-        if (slot < 1 || slot > 3) {
+    public ImportResultResponse importSecurisation(int slot, MultipartFile file, LocalDate forcedDate, String username) {
+        if (slot < 0 || slot > 3) {
             throw ApiException.badRequest("Fichier sécurisation inconnu : " + slot);
         }
-        return importFile(file, DataSource.secSlot(slot), null, username);
+        return importFile(file, DataSource.secSlot(slot), slot == 0 ? forcedDate : null, username);
     }
 
     @Transactional(readOnly = true)
@@ -74,13 +80,13 @@ public class ImportService {
         return batchRepository.findHistory(SEC_SOURCES, PageRequest.of(0, 50)).stream().map(DtoMapper::toBatch).toList();
     }
 
-    /** State of the 3 sécurisation file slots. */
+    /** State of the sécurisation file slots: 0 = global file, 1..3 = sécurisation files. */
     @Transactional(readOnly = true)
     public List<SecSourceResponse> securisationSources() {
         Map<DataSource, List<SourceColumn>> columns = sourceColumnRepository.findAll().stream()
                 .collect(Collectors.groupingBy(c -> DataSource.orMain(c.getSource())));
         List<SecSourceResponse> result = new ArrayList<>();
-        for (int slot = 1; slot <= 3; slot++) {
+        for (int slot = 0; slot <= 3; slot++) {
             DataSource source = DataSource.secSlot(slot);
             List<SourceColumn> list = columns.getOrDefault(source, List.of());
             ImportBatchResponse last = batchRepository.findHistory(List.of(source), PageRequest.of(0, 1)).stream()
@@ -149,8 +155,8 @@ public class ImportService {
                     dossier = Dossier.builder().idExterne(id).dossierDate(date != null ? date : today).build();
                     created++;
                 } else {
-                    // only the main file decides the dossier date
-                    if (source == DataSource.MAIN && date != null) {
+                    // only the main file (or a date forced on the global file) decides the dossier date
+                    if ((source == DataSource.MAIN || (source == DataSource.SEC_GLOBAL && forcedDate != null)) && date != null) {
                         dossier.setDossierDate(date);
                     }
                     dossier.setUpdatedAt(LocalDateTime.now());
@@ -160,6 +166,7 @@ public class ImportService {
                 headers.stream().filter(h -> !values.containsKey(h)).forEach(h -> values.put(h, null));
                 values.keySet().retainAll(headers);
                 Diff diff = applyValues(dossier.getRawData(), source.getPrefix(), values);
+                flagService.applyAutomatic(dossier);
                 dossier.setLastImport(batch);
                 toSave.add(dossier);
                 changes.add(new Change(dossier, isNew, diff.lines(), diff.modified()));
@@ -211,8 +218,11 @@ public class ImportService {
     }
 
     private DossierEvent importEvent(Change change, DataSource source, String fileName, String username) {
-        String origin = source == DataSource.MAIN ? "l'import « " + fileName + " »"
-                : "le fichier sécurisation " + source.name().substring(4) + " « " + fileName + " »";
+        String origin = switch (source) {
+            case MAIN -> "l'import « " + fileName + " »";
+            case SEC_GLOBAL -> "le fichier global sécurisation « " + fileName + " »";
+            default -> "le fichier sécurisation " + source.name().substring(4) + " « " + fileName + " »";
+        };
         EventType type;
         String detail;
         if (change.created()) {

@@ -1,6 +1,13 @@
 package com.mykyntus.controller;
 
 import com.mykyntus.dto.dossier.*;
+import com.mykyntus.dto.flag.DossierFlagsRequest;
+import com.mykyntus.dto.flag.DossierFlagsResponse;
+import com.mykyntus.service.ExportService;
+import com.mykyntus.service.FlagService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import com.mykyntus.security.CurrentUser;
 import com.mykyntus.service.DossierService;
 import com.mykyntus.service.DossierTimelineService;
@@ -23,6 +30,8 @@ public class DossierController {
     private final DossierService dossierService;
     private final DossierValueService valueService;
     private final DossierTimelineService timelineService;
+    private final FlagService flagService;
+    private final ExportService exportService;
 
     /** Simple listing (date + ID Externe search). */
     @GetMapping
@@ -58,6 +67,30 @@ public class DossierController {
                                           @RequestBody FieldValueUpdateRequest request,
                                           @AuthenticationPrincipal Jwt jwt) {
         return valueService.updateValue(dossierId, fieldId, request.value(), CurrentUser.from(jwt));
+    }
+
+    /** Manual flags of a dossier (the automatic detection no longer applies to it). */
+    @PutMapping("/{dossierId}/flags")
+    public DossierFlagsResponse setFlags(@PathVariable Long dossierId, @RequestBody DossierFlagsRequest request,
+                                         @AuthenticationPrincipal Jwt jwt) {
+        return flagService.setManual(dossierId, request.codes(), CurrentUser.from(jwt));
+    }
+
+    /** Back to the flags detected from the dossier columns. */
+    @DeleteMapping("/{dossierId}/flags")
+    public DossierFlagsResponse resetFlags(@PathVariable Long dossierId, @AuthenticationPrincipal Jwt jwt) {
+        return flagService.reset(dossierId, CurrentUser.from(jwt));
+    }
+
+    /** Excel export of the dossiers matching the criteria (every page), flags included. */
+    @PostMapping("/export")
+    public ResponseEntity<byte[]> export(@RequestBody ExportRequest request) {
+        byte[] content = exportService.export(request);
+        String name = "dossiers-" + LocalDate.now() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + name + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(content);
     }
 
     /** Life cycle of a dossier: stages reached and full history. */

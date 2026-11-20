@@ -1,7 +1,7 @@
 import { api } from "./api";
-import type { DossierCriteria, DossierStats, DossierTable, DossierTimeline, FacetResponse, FieldValue } from "../types";
+import type { DossierCriteria, DossierFlags, DossierStats, DossierTable, DossierTimeline, FacetResponse, FieldValue } from "../types";
 
-function toBody(c: DossierCriteria) {
+export function toBody(c: DossierCriteria) {
   return {
     date: c.date || null,
     search: c.search.trim() || null,
@@ -20,4 +20,9 @@ export const dossierService = {
   updateValue: (dossierId: number, fieldId: number, value: string | null) =>
     api.put<FieldValue>(`/api/dossiers/${dossierId}/values/${fieldId}`, { value }),
   timeline: (dossierId: number) => api.get<DossierTimeline>(`/api/dossiers/${dossierId}/timeline`),
+  setFlags: (dossierId: number, codes: string[]) => api.put<DossierFlags>(`/api/dossiers/${dossierId}/flags`, { codes }),
+  resetFlags: (dossierId: number) => api.delete<DossierFlags>(`/api/dossiers/${dossierId}/flags`),
+  /** Excel export of every matching dossier (columns in the given order). */
+  exportExcel: (criteria: DossierCriteria, columns: { key: string; label: string }[]) =>
+    api.download("/api/dossiers/export", { criteria: { ...toBody(criteria), page: 0 }, columns }, "dossiers.xlsx"),
 };

@@ -58,9 +58,9 @@ public class DossierTimelineService {
         markCurrent(stages);
 
         int edits = (int) events.stream().filter(e -> switch (e.getType()) {
-            case IMPORT_UPDATED, VALUE_CLEARED -> true;
+            case IMPORT_UPDATED, VALUE_CLEARED, FLAGS_CHANGED -> true;
             case VALUE_SET -> e.getOldValue() != null;
-            case CREATED, DATA_RECEIVED -> false;
+            case CREATED, DATA_RECEIVED, ASSIGNED -> false;
         }).count();
 
         List<Event> history = events.stream()

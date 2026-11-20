@@ -5,7 +5,7 @@ import { SECTION_THEME, sourceGroup } from "../../../utils/sectionTheme";
 import { ValueChip } from "../../badge/ValueChip/ValueChip";
 import { ValuePicker } from "../../select/ValuePicker/ValuePicker";
 import type { GridColumn, GridGroup } from "../DataGrid/types";
-import { dateColumn, idColumn, isIdExterneColumn, rawColumn } from "./commonColumns";
+import { assigneeColumn, dateColumn, flagsColumn, idColumn, isIdExterneColumn, rawColumn, type AssigneeColumnOptions, type FlagColumnOptions } from "./commonColumns";
 
 interface SuiviColumnsOptions {
   data: DossierTable | null;
@@ -18,14 +18,20 @@ interface SuiviColumnsOptions {
   rawHidden: boolean;
   onSave: (dossierId: number, fieldId: number, value: string | null) => Promise<void>;
   onOpen: (row: DossierRow) => void;
+  /** "Drapeaux" column. */
+  flags?: FlagColumnOptions | null;
+  /** "Pilote assigné" column (dispatch). */
+  assignee?: AssigneeColumnOptions | null;
 }
 
 /**
  * Columns of a follow-up table: Date | ID Externe | imported columns | application columns
  * grouped by section (Sécurisation, J-1, J, J+1).
  */
-export function buildSuiviColumns({ data, sections, editableSections, rawSources, rawHidden, onSave, onOpen }: SuiviColumnsOptions): GridColumn<DossierRow>[] {
+export function buildSuiviColumns({ data, sections, editableSections, rawSources, rawHidden, onSave, onOpen, flags, assignee }: SuiviColumnsOptions): GridColumn<DossierRow>[] {
   const columns: GridColumn<DossierRow>[] = [dateColumn(), idColumn(onOpen)];
+  if (flags) columns.push(flagsColumn(flags));
+  if (assignee) columns.push(assigneeColumn(assignee));
 
   for (const sc of data?.sourceColumns ?? []) {
     if (rawSources.includes(sc.source) && !isIdExterneColumn(sc.label)) {

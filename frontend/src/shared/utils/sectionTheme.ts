@@ -48,6 +48,13 @@ export const SECTION_THEME: Record<GroupId, GroupTheme> = {
     soft: "bg-slate-100 text-slate-700",
     ring: "ring-slate-200",
   },
+  SEC_GLOBAL: {
+    header: "bg-linear-to-r from-night to-brand-800 text-white",
+    sub: "bg-brand-50/70 text-brand-950",
+    bar: "bg-brand-800",
+    soft: "bg-brand-50 text-brand-800",
+    ring: "ring-brand-200",
+  },
   SEC_1: {
     header: "bg-linear-to-r from-slate-800 to-teal-700 text-white",
     sub: "bg-teal-50/70 text-teal-950",

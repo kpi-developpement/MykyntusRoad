@@ -9,9 +9,10 @@ import { PageHeader } from "@/shared/components/layout/PageHeader/PageHeader";
 import { useToast } from "@/shared/components/toast/ToastProvider/ToastProvider";
 import { secService } from "@/shared/services/secService";
 import type { ImportBatch, SecSource } from "@/shared/types";
+import { GlobalImportCard } from "../../components/import/GlobalImportCard/GlobalImportCard";
 import { SecSlotCard } from "../../components/import/SecSlotCard/SecSlotCard";
 
-/** The 3 sécurisation files: each one enriches the dossiers (matched by EPS) with its own columns. */
+/** Global file (every dossier + flags) and the 3 sécurisation files that enrich the dossiers (matched by EPS). */
 export function SecImportsPage() {
   const toast = useToast();
   const [sources, setSources] = useState<SecSource[] | null>(null);
@@ -35,14 +36,26 @@ export function SecImportsPage() {
       <PageHeader
         eyebrow="Sécurisation"
         title="Fichiers sécurisation"
-        description="Importez les 3 fichiers. Chaque ligne est rattachée à son dossier par l'EPS ; ses colonnes deviennent disponibles dans l'espace sécurisation."
+        description="Le fichier global apporte tous les dossiers et leurs drapeaux. Les 3 fichiers complètent les dossiers (rattachés par l'EPS) avec leurs propres colonnes."
         icon={<CloudUpload />}
       />
 
+      {sources === null ? (
+        <Skeleton className="mb-6 h-[26rem] rounded-[28px]" />
+      ) : (
+        <GlobalImportCard source={sources.find((s) => s.slot === 0)} onImported={load} />
+      )}
+
+      <h2 className="mb-4 flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.24em] text-brand-600 uppercase">
+        <span className="h-px w-6 bg-linear-to-r from-brand-600 to-sky-400" />
+        Fichiers complémentaires
+      </h2>
       <div className="mb-6 grid gap-5 lg:grid-cols-3">
         {sources === null
           ? [0, 1, 2].map((i) => <Skeleton key={i} className="h-96 rounded-3xl" />)
-          : sources.map((s, i) => <SecSlotCard key={s.slot} source={s} index={i} onImported={load} />)}
+          : sources
+              .filter((s) => s.slot > 0)
+              .map((s, i) => <SecSlotCard key={s.slot} source={s} index={i} onImported={load} />)}
       </div>
 
       <Card1 title="Historique" subtitle="Derniers fichiers sécurisation importés" icon={<History />} bodyClassName="scroll-thin max-h-[28rem] overflow-y-auto">

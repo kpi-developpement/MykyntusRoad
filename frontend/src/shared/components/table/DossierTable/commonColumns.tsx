@@ -1,7 +1,65 @@
-import type { DossierRow, SourceColumn } from "../../../types";
+"use client";
+
+import { useFlags } from "../../../hooks/useFlags";
+import type { DossierRow, Pilote, SourceColumn } from "../../../types";
 import { formatDate, weekdayShort } from "../../../utils/date";
+import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
+import { AssigneeCell, piloteName } from "../../dossier/AssigneeCell/AssigneeCell";
 import { IdCell } from "../../dossier/IdCell/IdCell";
+import { FlagBadge } from "../../flag/FlagBadge/FlagBadge";
+import { FlagCell } from "../../flag/FlagCell/FlagCell";
 import type { GridColumn } from "../DataGrid/types";
+
+function FlagValue({ code }: { code: string }) {
+  const { byCode } = useFlags();
+  return <FlagBadge code={code} flag={byCode.get(code)} withLabel />;
+}
+
+export interface FlagColumnOptions {
+  editable: boolean;
+  codes: string[];
+  onApply: (row: DossierRow, codes: string[]) => Promise<void>;
+  onReset: (row: DossierRow) => Promise<void>;
+}
+
+/** Column "Drapeaux": automatic flags, editable by hand, filterable. */
+export function flagsColumn({ editable, codes, onApply, onReset }: FlagColumnOptions): GridColumn<DossierRow> {
+  return {
+    key: "flags",
+    label: "Drapeaux",
+    width: 210,
+    sortable: true,
+    filterable: true,
+    knownValues: codes,
+    renderValue: (v) => <FlagValue code={v} />,
+    render: (row) => <FlagCell row={row} editable={editable} onApply={onApply} onReset={onReset} />,
+  };
+}
+
+export interface AssigneeColumnOptions {
+  pilotes: Pilote[] | null;
+  editable: boolean;
+  onAssign: (row: DossierRow, pilote: string | null) => Promise<void>;
+}
+
+/** Column "Pilote assigné" (dispatch). */
+export function assigneeColumn({ pilotes, editable, onAssign }: AssigneeColumnOptions): GridColumn<DossierRow> {
+  return {
+    key: "assignee",
+    label: "Pilote assigné",
+    width: 190,
+    sortable: true,
+    filterable: true,
+    formatValue: (v) => piloteName(v, pilotes),
+    renderValue: (v) => (
+      <span className="inline-flex items-center gap-1.5">
+        <Avatar1 name={piloteName(v, pilotes)} size="sm" className="size-5 text-[8px]" />
+        {piloteName(v, pilotes)}
+      </span>
+    ),
+    render: (row) => <AssigneeCell row={row} pilotes={pilotes} editable={editable} onAssign={onAssign} />,
+  };
+}
 
 /** Column "Date" (dossier date). */
 export function dateColumn(pinned = true): GridColumn<DossierRow> {

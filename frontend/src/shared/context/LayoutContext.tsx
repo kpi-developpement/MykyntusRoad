@@ -6,7 +6,10 @@ import type { NavSection } from "../types/navigation";
 
 interface LayoutState {
   nav: NavSection[];
-  /** Desktop sidebar reduced to icons. */
+  /**
+   * Desktop sidebar pinned open? When not pinned (default) it stays slim and opens by itself
+   * while the cursor is over it, above the page (no reflow).
+   */
   collapsed: boolean;
   toggleCollapsed: () => void;
   /** Mobile sidebar drawer. */
@@ -24,7 +27,8 @@ interface LayoutState {
 const LayoutContext = createContext<LayoutState | null>(null);
 
 export function LayoutProvider({ nav, children }: { nav: NavSection[]; children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useLocalStorageState("mykyntus.sidebar.collapsed", false);
+  // new key: everybody starts with the slim sidebar that opens on hover
+  const [collapsed, setCollapsed] = useLocalStorageState("mykyntus.sidebar.slim", true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [pendingSearch, setPendingSearch] = useState<{ q: string; id: number } | null>(null);

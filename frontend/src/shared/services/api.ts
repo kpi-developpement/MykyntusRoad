@@ -115,8 +115,42 @@ function upload<T>(path: string, form: FormData, options: { query?: Query; onPro
   });
 }
 
+/** POST returning a file (Excel export): saved by the browser under the server-given name. */
+async function download(path: string, body: unknown, fallbackName: string): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = tokenStorage.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path), { method: "POST", headers, body: JSON.stringify(body) });
+  } catch {
+    throw new ApiError(0, "Serveur injoignable. Vérifiez que le backend est démarré.");
+  }
+  if (res.status === 401) onUnauthorized?.();
+  if (!res.ok) {
+    let message = `Erreur ${res.status}`;
+    try {
+      const data = await res.json();
+      if (data?.message) message = data.message;
+    } catch {
+      /* no json body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  const match = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") ?? "");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = match?.[1] ?? fallbackName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
   upload,
+  download,
   get: <T>(path: string, query?: Query) => request<T>("GET", path, { query }),
   post: <T>(path: string, body?: unknown, query?: Query) => request<T>("POST", path, { body, query }),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body }),

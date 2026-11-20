@@ -50,7 +50,8 @@ public class DossierService {
         List<DossierRowResponse> rows = result.getContent().stream()
                 .map(d -> new DossierRowResponse(d.getId(), d.getIdExterne(), d.getDossierDate(),
                         new LinkedHashMap<>(d.getRawData()),
-                        valuesByDossier.getOrDefault(d.getId(), Map.of())))
+                        valuesByDossier.getOrDefault(d.getId(), Map.of()),
+                        FlagService.decode(d.getFlags()), d.isFlagsManual(), d.getAssignedTo()))
                 .toList();
 
         List<SourceColumnResponse> columns = sourceColumnRepository.findByVisibleTrueOrderByPositionAsc()

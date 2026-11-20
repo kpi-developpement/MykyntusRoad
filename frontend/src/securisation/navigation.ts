@@ -1,15 +1,22 @@
-import { CloudUpload, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { CloudUpload, ShieldCheck, Shuffle, SlidersHorizontal, UsersRound } from "lucide-react";
 import type { NavSection } from "@/shared/types/navigation";
 
 export const SECURISATION_NAV: NavSection[] = [
   {
     title: "Sécurisation",
-    items: [{ href: "/securisation/espace", label: "Espace sécurisation", icon: ShieldCheck, description: "Dossiers à sécuriser" }],
+    items: [
+      { href: "/securisation/espace", label: "Espace sécurisation", icon: ShieldCheck, description: "Dossiers à sécuriser" },
+      { href: "/securisation/dispatch", label: "Dispatch", icon: Shuffle, description: "Répartir le travail entre les pilotes" },
+    ],
+  },
+  {
+    title: "Équipe",
+    items: [{ href: "/securisation/pilotes", label: "Pilotes", icon: UsersRound, description: "Créer et gérer les pilotes" }],
   },
   {
     title: "Administration",
     items: [
-      { href: "/securisation/imports", label: "Fichiers sécurisation", icon: CloudUpload, description: "Importer les 3 fichiers" },
+      { href: "/securisation/imports", label: "Fichiers sécurisation", icon: CloudUpload, description: "Fichier global + 3 fichiers" },
       { href: "/securisation/colonnes", label: "Colonnes & valeurs", icon: SlidersHorizontal, description: "Colonnes affichées, listes" },
     ],
   },

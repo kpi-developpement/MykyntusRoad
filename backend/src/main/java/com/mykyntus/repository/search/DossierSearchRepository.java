@@ -76,6 +76,9 @@ public class DossierSearchRepository {
     public FacetResult facets(DossierSearchRequest request, String keyValue, String q, int limit) {
         ColumnKey key = ColumnKey.parse(keyValue);
         String text = TextUtils.trimToNull(q);
+        if (key instanceof ColumnKey.FlagsKey) {
+            return flagFacets(request, keyValue, text, limit);
+        }
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> cq = cb.createTupleQuery();
         List<Predicate> where = new ArrayList<>();
@@ -115,6 +118,20 @@ public class DossierSearchRepository {
                 order.add(cb.desc(count));
                 order.add(cb.asc(r.value()));
             }
+            case ColumnKey.AssigneeKey ignored -> {
+                Root<Dossier> d = cq.from(Dossier.class);
+                where.addAll(Arrays.asList(predicates(cb, cq, d, request, keyValue)));
+                Expression<String> assignee = d.get("assignedTo");
+                where.add(cb.isNotNull(assignee));
+                if (text != null) {
+                    where.add(cb.like(cb.lower(assignee), likePattern(text), LIKE_ESCAPE));
+                }
+                value = assignee;
+                count = cb.count(d);
+                order.add(cb.desc(count));
+                order.add(cb.asc(assignee));
+            }
+            case ColumnKey.FlagsKey ignored -> throw new IllegalStateException("handled by flagFacets");
             case ColumnKey.FieldKey(Long fieldId) -> {
                 Root<DossierFieldValue> v = cq.from(DossierFieldValue.class);
                 Join<DossierFieldValue, Dossier> d = v.join("dossier");
@@ -155,6 +172,8 @@ public class DossierSearchRepository {
                     where.add(cb.not(d.get("id").in(rawIds(cb, cq, column, r -> cb.isNotNull(r.value())))));
             case ColumnKey.FieldKey(Long fieldId) ->
                     where.add(cb.not(d.get("id").in(fieldIds(cb, cq, fieldId, cb::isNotNull))));
+            case ColumnKey.FlagsKey ignored -> where.add(noFlags(cb, d));
+            case ColumnKey.AssigneeKey ignored -> where.add(cb.isNull(d.get("assignedTo")));
             default -> {
                 return 0;
             }
@@ -240,6 +259,27 @@ public class DossierSearchRepository {
                 yield dates.isEmpty() ? cb.disjunction() : d.get("dossierDate").in(dates);
             }
             case ColumnKey.IdKey ignored -> values.isEmpty() ? cb.disjunction() : d.get("idExterne").in(values);
+            case ColumnKey.FlagsKey ignored -> {
+                List<Predicate> or = new ArrayList<>();
+                Expression<String> flags = d.get("flags");
+                for (String code : values) {
+                    or.add(cb.like(flags, "%|" + escapeLike(code) + "|%", LIKE_ESCAPE));
+                }
+                if (includeEmpty) {
+                    or.add(noFlags(cb, d));
+                }
+                yield cb.or(or.toArray(Predicate[]::new));
+            }
+            case ColumnKey.AssigneeKey ignored -> {
+                List<Predicate> or = new ArrayList<>();
+                if (!values.isEmpty()) {
+                    or.add(d.get("assignedTo").in(values));
+                }
+                if (includeEmpty) {
+                    or.add(cb.isNull(d.get("assignedTo")));
+                }
+                yield cb.or(or.toArray(Predicate[]::new));
+            }
             case ColumnKey.RawKey(String column) -> {
                 List<Predicate> or = new ArrayList<>();
                 if (!values.isEmpty()) {
@@ -270,6 +310,8 @@ public class DossierSearchRepository {
         return switch (key) {
             case ColumnKey.DateKey ignored -> null;
             case ColumnKey.IdKey ignored -> cb.like(cb.lower(d.get("idExterne")), pattern, LIKE_ESCAPE);
+            case ColumnKey.FlagsKey ignored -> cb.like(cb.lower(d.get("flags")), pattern, LIKE_ESCAPE);
+            case ColumnKey.AssigneeKey ignored -> cb.like(cb.lower(d.get("assignedTo")), pattern, LIKE_ESCAPE);
             case ColumnKey.RawKey(String column) ->
                     id.in(rawIds(cb, query, column, r -> cb.like(cb.lower(r.value()), pattern, LIKE_ESCAPE)));
             case ColumnKey.FieldKey(Long fieldId) ->
@@ -305,6 +347,8 @@ public class DossierSearchRepository {
             Expression<?> expression = switch (ColumnKey.parse(sort.key())) {
                 case ColumnKey.DateKey ignored -> d.get("dossierDate");
                 case ColumnKey.IdKey ignored -> d.get("idExterne");
+                case ColumnKey.FlagsKey ignored -> d.get("flags");
+                case ColumnKey.AssigneeKey ignored -> d.get("assignedTo");
                 case ColumnKey.RawKey(String column) -> {
                     MapJoin<Dossier, String, String> r = d.joinMap("rawData", JoinType.LEFT);
                     r.on(cb.equal(r.key(), column));
@@ -324,7 +368,93 @@ public class DossierSearchRepository {
         return orders;
     }
 
+    // ------------------------------------------------------------------ flags / dispatch / export
+
+    /** Flags are stored "|P1|SECU|": counts every code of the matching dossiers. */
+    private FacetResult flagFacets(DossierSearchRequest request, String keyValue, String text, int limit) {
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Tuple> cq = cb.createTupleQuery();
+        Root<Dossier> d = cq.from(Dossier.class);
+        Expression<String> flags = d.get("flags");
+        cq.multiselect(flags, cb.count(d))
+                .where(predicates(cb, cq, d, request, keyValue))
+                .groupBy(flags);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        long empty = 0;
+        for (Tuple t : em.createQuery(cq).getResultList()) {
+            String value = t.get(0, String.class);
+            long n = t.get(1, Long.class);
+            boolean any = false;
+            for (String code : value == null ? new String[0] : value.split("\\|")) {
+                if (!code.isBlank()) {
+                    counts.merge(code, n, Long::sum);
+                    any = true;
+                }
+            }
+            if (!any) {
+                empty += n;
+            }
+        }
+        String lower = text == null ? null : text.toLowerCase(Locale.ROOT);
+        List<FacetValue> values = counts.entrySet().stream()
+                .filter(e -> lower == null || e.getKey().toLowerCase(Locale.ROOT).contains(lower))
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .map(e -> new FacetValue(e.getKey(), e.getValue()))
+                .toList();
+        return new FacetResult(values.stream().limit(limit).toList(), text == null ? empty : 0, values.size() > limit);
+    }
+
+    private static Predicate noFlags(CriteriaBuilder cb, From<?, Dossier> d) {
+        return cb.or(cb.isNull(d.get("flags")), cb.equal(d.get("flags"), ""));
+    }
+
+    /** One line per matching dossier: id, assigned pilot, flags, treated (state filled). */
+    public record ScopeRow(Long id, String assignedTo, String flags, boolean treated) {
+    }
+
+    /**
+     * Every dossier matching the criteria (no paging), with what the dispatch needs.
+     *
+     * @param treatedFieldId field whose value marks a dossier as treated (null = any sécurisation value)
+     */
+    public List<ScopeRow> scope(DossierSearchRequest request, Long treatedFieldId) {
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Tuple> cq = cb.createTupleQuery();
+        Root<Dossier> d = cq.from(Dossier.class);
+
+        Subquery<Long> treated = cq.subquery(Long.class);
+        Root<DossierFieldValue> v = treated.from(DossierFieldValue.class);
+        Predicate filled = cb.and(cb.isNotNull(v.get("value")), cb.notEqual(v.get("value"), ""));
+        Predicate field = treatedFieldId != null
+                ? cb.equal(v.get("field").get("id"), treatedFieldId)
+                : cb.equal(v.get("field").get("section"), FieldSection.SECURISATION);
+        treated.select(v.get("dossier").get("id")).where(field, filled);
+
+        cq.multiselect(d.get("id"), d.get("assignedTo"), d.get("flags"),
+                        cb.selectCase().when(d.get("id").in(treated), true).otherwise(false))
+                .where(predicates(cb, cq, d, request, null))
+                .orderBy(cb.asc(d.get("dossierDate")), cb.asc(d.get("idExterne")));
+        return em.createQuery(cq).getResultList().stream()
+                .map(t -> new ScopeRow(t.get(0, Long.class), t.get(1, String.class), t.get(2, String.class),
+                        Boolean.TRUE.equals(t.get(3))))
+                .toList();
+    }
+
+    /** Ids of every matching dossier, in the table order (export). */
+    public List<Long> ids(DossierSearchRequest request, int max) {
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+        Root<Dossier> d = cq.from(Dossier.class);
+        cq.select(d.get("id")).where(predicates(cb, cq, d, request, null));
+        cq.orderBy(orders(cb, d, request.sort()));
+        return em.createQuery(cq).setMaxResults(max).getResultList();
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    private static String escapeLike(String text) {
+        return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
 
     private static String likePattern(String text) {
         String escaped = text.toLowerCase(Locale.ROOT)

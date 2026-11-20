@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { dossierService } from "../services/dossierService";
-import type { ColumnFilter, DossierCriteria, DossierStats, DossierTable, SortSpec } from "../types";
+import type { ColumnFilter, DossierCriteria, DossierRow, DossierStats, DossierTable, SortSpec } from "../types";
 
 interface Options {
   initialDate: string;
   initialSearch?: string;
+  initialFilters?: ColumnFilter[];
   pageSize?: number;
 }
 
@@ -25,11 +26,11 @@ const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur de cha
  * State of a dossier table: criteria (date, search, column filters, sort, page),
  * server data, counters and value saving.
  */
-export function useDossierGrid({ initialDate, initialSearch = "", pageSize = 50 }: Options) {
+export function useDossierGrid({ initialDate, initialSearch = "", initialFilters = [], pageSize = 50 }: Options) {
   const [criteria, setCriteria] = useState<DossierCriteria>({
     date: initialDate,
     search: initialSearch,
-    filters: [],
+    filters: initialFilters,
     sort: null,
     page: 0,
     size: pageSize,
@@ -133,6 +134,21 @@ export function useDossierGrid({ initialDate, initialSearch = "", pageSize = 50 
 
   const loadFacets = useCallback((key: string, q: string) => dossierService.facets(criteria, key, q), [criteria]);
 
+  /** Local update of one row (flags, pilot...) without reloading the page. */
+  const patchRow = useCallback((dossierId: number, patch: Partial<DossierRow>) => {
+    setTable((prev) => {
+      if (!prev.data) return prev;
+      const content = prev.data.rows.content.map((row) => (row.id === dossierId ? { ...row, ...patch } : row));
+      return { ...prev, data: { ...prev.data, rows: { ...prev.data.rows, content } } };
+    });
+  }, []);
+
+  /** Refreshes the counters (after a change that may move a dossier in or out of a filter). */
+  const refreshStats = useCallback(() => {
+    if (statsTimer.current) clearTimeout(statsTimer.current);
+    statsTimer.current = setTimeout(() => setStatsToken((t) => t + 1), 500);
+  }, []);
+
   return {
     criteria,
     data: table.data,
@@ -153,6 +169,9 @@ export function useDossierGrid({ initialDate, initialSearch = "", pageSize = 50 
     reload,
     saveValue,
     loadFacets,
+    patchRow,
+    refreshStats,
+    statsToken,
   };
 }
 
