@@ -49,6 +49,8 @@ interface SuiviViewProps {
   actions?: React.ReactNode;
   /** Header actions that need the table state (e.g. "Mes dossiers"). */
   renderActions?: (grid: DossierGrid) => React.ReactNode;
+  /** Card shown above the counters (needs the table state, e.g. dossiers to plan). */
+  renderBanner?: (grid: DossierGrid) => React.ReactNode;
   emptyAction?: React.ReactNode;
 }
 
@@ -85,6 +87,7 @@ export function SuiviView({
   teams = NO_TEAMS,
   actions,
   renderActions,
+  renderBanner,
   emptyAction,
 }: SuiviViewProps) {
   const { user } = useAuth();
@@ -219,6 +222,8 @@ export function SuiviView({
           )
         }
       />
+
+      {renderBanner?.(grid)}
 
       <div className={`mb-5 grid gap-3 sm:gap-4 ${GRID_COLS[kpiSections.length + 1] ?? GRID_COLS[4]}`}>
         <KpiCard

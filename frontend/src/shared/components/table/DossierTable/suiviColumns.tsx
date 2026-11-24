@@ -58,8 +58,8 @@ function groupFields(data: DossierTable | null, section: FieldSection, sections:
 }
 
 /**
- * Columns of a follow-up table: Date | ID Externe | Délai | Drapeaux | assignments | imported columns |
- * application columns grouped by service (Sécurisation, Planification, J, J+1) | sécurisation files 1-3.
+ * Columns of a follow-up table: Date | ID Externe | Délai | Équipe J-1 | Drapeaux | assignments |
+ * application columns grouped by service (Sécurisation, Planification, J, J+1) | imported columns | sécurisation files 1-3.
  */
 export function buildSuiviColumns({
   data,
@@ -85,8 +85,7 @@ export function buildSuiviColumns({
       }
     }
   };
-  raw(rawSources.filter((s) => !LAST_SOURCES.includes(s)));
-
+  // work columns first (right after the pilot), the imported data after them
   for (const section of SECTIONS) {
     const full = sections.includes(section);
     for (const field of groupFields(data, section, sections)) {
@@ -101,18 +100,27 @@ export function buildSuiviColumns({
         filterable: true,
         knownValues: select ? field.options.map((o) => o.value) : undefined,
         renderValue: select ? (v) => <ValueChip value={v} size="xs" /> : undefined,
-        render: (row) => (
-          <ValuePicker
-            field={field}
-            value={row.values[field.id]}
-            editable={full && editableSections.includes(effectiveSection(field, row)) && (canEditRow?.(row) ?? true)}
-            onSave={(value) => onSave(row.id, field.id, value)}
-          />
-        ),
+        render: (row) =>
+          // J-1 column of a dossier handed to the planification team: read only here, says where it went
+          section === "SECURISATION" && field.planification && row.planification && !row.values[field.id] ? (
+            <span className="flex h-8 items-center px-1" title="Cellule plani ≠ « Planifié » : colonne traitée par la planification">
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-600 ring-1 ring-violet-200">
+                <Lock className="size-3" /> Planification
+              </span>
+            </span>
+          ) : (
+            <ValuePicker
+              field={field}
+              value={row.values[field.id]}
+              editable={full && editableSections.includes(effectiveSection(field, row)) && (canEditRow?.(row) ?? true)}
+              onSave={(value) => onSave(row.id, field.id, value)}
+            />
+          ),
       });
     }
   }
 
+  raw(rawSources.filter((s) => !LAST_SOURCES.includes(s)));
   raw(LAST_SOURCES);
   return columns;
 }
@@ -129,7 +137,7 @@ export function buildSuiviGroups(
     const title = s === "MAIN" ? "Données importées" : SOURCE_LABELS[s];
     return { id, title, label: title, headerClassName: SECTION_THEME[id].header, subHeaderClassName: SECTION_THEME[id].sub };
   };
-  const groups: GridGroup[] = rawSources.filter((s) => !LAST_SOURCES.includes(s)).map(source);
+  const groups: GridGroup[] = [];
 
   for (const section of SECTIONS) {
     if (section === "PLANIFICATION" && !sections.includes(section)) continue;
@@ -159,6 +167,7 @@ export function buildSuiviGroups(
     });
   }
 
+  groups.push(...rawSources.filter((s) => !LAST_SOURCES.includes(s)).map(source));
   groups.push(...rawSources.filter((s) => LAST_SOURCES.includes(s)).map(source));
   return groups;
 }

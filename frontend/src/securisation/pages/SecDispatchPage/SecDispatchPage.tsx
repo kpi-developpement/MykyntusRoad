@@ -21,6 +21,7 @@ import { Button1 } from "@/shared/components/button/Button1/Button1";
 import { IconButton } from "@/shared/components/button/IconButton/IconButton";
 import { LinkButton } from "@/shared/components/button/LinkButton/LinkButton";
 import { KpiCard } from "@/shared/components/card/KpiCard/KpiCard";
+import { Magnetic } from "@/shared/components/motion/Magnetic/Magnetic";
 import { ProgressRing } from "@/shared/components/chart/ProgressRing/ProgressRing";
 import { useConfirm } from "@/shared/components/confirm/ConfirmProvider/ConfirmProvider";
 import { EmptyState } from "@/shared/components/feedback/EmptyState/EmptyState";
@@ -380,16 +381,18 @@ export function SecDispatchPage({
           </div>
 
           <div className="relative mt-5">
-            <Button1
-              size="lg"
-              className="w-full"
-              leftIcon={<Zap />}
-              loading={running}
-              disabled={!chosen.length || preview.toDispatch === 0}
-              onClick={runDispatch}
-            >
-              Dispatcher {preview.toDispatch} dossier(s) entre {chosen.length} pilote(s)
-            </Button1>
+            <Magnetic strength={0.08} className="w-full">
+              <Button1
+                size="lg"
+                className="w-full"
+                leftIcon={<Zap />}
+                loading={running}
+                disabled={!chosen.length || preview.toDispatch === 0}
+                onClick={runDispatch}
+              >
+                Dispatcher {preview.toDispatch} dossier(s) entre {chosen.length} pilote(s)
+              </Button1>
+            </Magnetic>
             <Burst key={burst} active={burst > 0} />
           </div>
         </Surface>

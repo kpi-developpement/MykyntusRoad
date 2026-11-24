@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   turbopack: {
     rules: {
-      "*.css": {
+      // Tailwind only processes the global stylesheet: CSS Modules (*.module.css) keep their scoped classes
+      "globals.css": {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },

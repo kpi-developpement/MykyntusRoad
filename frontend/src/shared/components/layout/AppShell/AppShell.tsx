@@ -5,10 +5,12 @@ import { LayoutProvider, useLayout } from "../../../context/LayoutContext";
 import { useHotkey, withMod } from "../../../hooks/useHotkey";
 import type { NavSection } from "../../../types/navigation";
 import { CommandPalette } from "../../command/CommandPalette/CommandPalette";
+import { AuroraBackground } from "../AuroraBackground/AuroraBackground";
 import { InteractiveGrid } from "../InteractiveGrid/InteractiveGrid";
 import { PageTransition } from "../PageTransition/PageTransition";
 import { Sidebar } from "../Sidebar/Sidebar";
 import { Topbar } from "../Topbar/Topbar";
+import styles from "./AppShell.module.css";
 
 interface AppShellProps {
   nav: NavSection[];
@@ -37,9 +39,11 @@ function Frame({ children }: { children: React.ReactNode }) {
     <div className="app-canvas flex h-dvh overflow-hidden">
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col">
+        <AuroraBackground />
         <InteractiveGrid />
         <Topbar />
         <main className="scroll-thin relative flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+          <div aria-hidden className={styles.edge} />
           <PageTransition>
             <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
           </PageTransition>

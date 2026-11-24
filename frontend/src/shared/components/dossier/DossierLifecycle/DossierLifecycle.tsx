@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { Activity, ChevronRight, History, Mail, PencilLine, UserRound } from "lucide-react";
 import { useDossierTimeline } from "../../../hooks/useDossierTimeline";
 import type { DossierTimeline, FieldSection, TimelineEvent, TimelineStage } from "../../../types";
@@ -30,6 +31,7 @@ const isMailEvent = (e: TimelineEvent) => !!e.field && /mail/i.test(e.field);
 export function DossierLifecycle({ dossierId }: { dossierId: number }) {
   const { timeline, error, loading } = useDossierTimeline(dossierId);
   const [stage, setStage] = useState<TimelineStage | null>(null);
+  const reduce = useReducedMotion();
 
   if (error) return <Alert1 tone="error">{error}</Alert1>;
   if (loading || !timeline) {
@@ -75,7 +77,7 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
       <section>
         <h4 className="mb-3 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase">Étapes</h4>
         <ol className="space-y-2">
-          {timeline.stages.map((s) => {
+          {timeline.stages.map((s, i) => {
             const theme = stageTheme(s.key);
             const clickable = s.key !== "IMPORT";
             const content = (
@@ -96,7 +98,12 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
               s.status === "CURRENT" ? cn(theme.soft, theme.ring) : s.status === "DONE" ? "bg-white ring-slate-200/80" : "bg-slate-50/60 ring-slate-100",
             );
             return (
-              <li key={s.key}>
+              <motion.li
+                key={s.key}
+                initial={reduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 420, damping: 34, delay: i * 0.04 }}
+              >
                 {clickable ? (
                   <button type="button" onClick={() => setStage(s)} className={cn(base, "hover:ring-slate-300")}>
                     {content}
@@ -104,7 +111,7 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
                 ) : (
                   <div className={base}>{content}</div>
                 )}
-              </li>
+              </motion.li>
             );
           })}
         </ol>
@@ -120,6 +127,7 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
 /** History split by service (each in its colour) + a "Mail" tab with every mail and its objet. */
 function HistoryTabs({ timeline }: { timeline: DossierTimeline }) {
   const [tab, setTab] = useState<HistoryTab>("ALL");
+  const pillId = useId();
 
   const bySection = useMemo(() => {
     const map = new Map<HistoryTab, TimelineEvent[]>();
@@ -154,19 +162,26 @@ function HistoryTabs({ timeline }: { timeline: DossierTimeline }) {
               type="button"
               onClick={() => setTab(t.id)}
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition-colors",
+                "relative isolate inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition-colors",
                 on
-                  ? theme
-                    ? cn(theme.soft, theme.ring)
-                    : t.id === "MAIL"
-                      ? "bg-sky-50 text-sky-700 ring-sky-200"
-                      : "bg-slate-900 text-white ring-slate-900"
+                  ? cn("ring-transparent", theme ? theme.text : t.id === "MAIL" ? "text-sky-700" : "text-white")
                   : "bg-white text-slate-500 ring-slate-200 hover:text-slate-800",
               )}
             >
+              {on && (
+                // active pill slides from tab to tab (spring, transform only)
+                <motion.span
+                  layoutId={`hist-${pillId}`}
+                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                  className={cn(
+                    "absolute inset-0 -z-10 rounded-lg ring-1",
+                    theme ? cn(theme.soft, theme.ring) : t.id === "MAIL" ? "bg-sky-50 ring-sky-200" : "bg-slate-900 ring-slate-900",
+                  )}
+                />
+              )}
               {t.id === "MAIL" ? <Mail className="size-3.5" /> : t.dot && <span className={cn("size-2 rounded-full", t.dot)} />}
               {t.label}
-              <span className={cn("rounded-full px-1.5 font-mono text-[10px] tabular-nums", on ? "bg-white/70" : "bg-slate-100")}>{t.count}</span>
+              <span className={cn("rounded-full px-1.5 font-mono text-[10px] tabular-nums", on ? "bg-white/70 text-slate-700" : "bg-slate-100")}>{t.count}</span>
             </button>
           );
         })}

@@ -1,6 +1,7 @@
 "use client";
 
 import { CloudUpload, LayoutDashboard } from "lucide-react";
+import { PlanifBanner } from "@/admin/components/planif/PlanifBanner/PlanifBanner";
 import { LinkButton } from "@/shared/components/button/LinkButton/LinkButton";
 import { SuiviView } from "@/shared/pages/SuiviView/SuiviView";
 import type { Team } from "@/shared/types";
@@ -26,6 +27,7 @@ export function SuiviPage() {
       icon={<LayoutDashboard />}
       initialDate={tomorrow()}
       teams={TEAMS}
+      renderBanner={(grid) => <PlanifBanner grid={grid} />}
       actions={importButton}
       emptyAction={importButton}
     />
