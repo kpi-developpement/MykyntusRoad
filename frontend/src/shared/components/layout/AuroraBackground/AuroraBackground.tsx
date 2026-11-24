@@ -3,17 +3,47 @@
 import { useEffect, useRef } from "react";
 import styles from "./AuroraBackground.module.css";
 
-/** Max shift (px) of the orbs opposite to the cursor: depth, not motion sickness. */
-const SHIFT = 26;
+/** Max shift (px) of the clouds opposite to the cursor: depth, not motion sickness. */
+const SHIFT = 22;
+
+interface Sky {
+  top: string;
+  bottom: string;
+  sun: string;
+  sunX: string;
+}
+
+/** Light of the sky for an hour of the day. */
+function skyAt(hour: number): Sky {
+  if (hour >= 6 && hour < 11) return { top: "#d9e9ff", bottom: "#eef2f8", sun: "rgb(255 214 170 / 0.55)", sunX: "18%" };
+  if (hour >= 11 && hour < 15) return { top: "#e6f1ff", bottom: "#f3f6fb", sun: "rgb(255 244 200 / 0.7)", sunX: "50%" };
+  if (hour >= 15 && hour < 20) return { top: "#ffe6d6", bottom: "#f2eff8", sun: "rgb(255 170 120 / 0.45)", sunX: "82%" };
+  return { top: "#e3e5f6", bottom: "#eef0f8", sun: "rgb(160 170 255 / 0.3)", sunX: "70%" };
+}
 
 /**
- * Interactive mesh gradient behind the pages: slow drifting orbs that lean slightly away
- * from the cursor. The cursor only writes a transform on one layer, eased in requestAnimationFrame,
- * and the loop stops as soon as the layer has caught up (idle = 0 frame).
+ * "Sky clock" behind the pages: a pale sky lit according to the time of day, three soft clouds
+ * drifting slowly and leaning a little away from the cursor. Idle = no JS work; hidden tab = paused.
  */
 export function AuroraBackground() {
   const root = useRef<HTMLDivElement>(null);
   const layer = useRef<HTMLDivElement>(null);
+
+  // sky colour: now, then every 10 minutes
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const paint = () => {
+      const s = skyAt(new Date().getHours());
+      el.style.setProperty("--sky-top", s.top);
+      el.style.setProperty("--sky-bottom", s.bottom);
+      el.style.setProperty("--sun", s.sun);
+      el.style.setProperty("--sun-x", s.sunX);
+    };
+    paint();
+    const timer = setInterval(paint, 10 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const el = layer.current;
@@ -54,9 +84,9 @@ export function AuroraBackground() {
   return (
     <div ref={root} aria-hidden className={styles.root}>
       <div ref={layer} className={styles.parallax}>
-        <span className={`${styles.orb} ${styles.blue}`} />
-        <span className={`${styles.orb} ${styles.sky}`} />
-        <span className={`${styles.orb} ${styles.violet}`} />
+        <span className={`${styles.cloud} ${styles.a}`} />
+        <span className={`${styles.cloud} ${styles.b}`} />
+        <span className={`${styles.cloud} ${styles.c}`} />
       </div>
     </div>
   );

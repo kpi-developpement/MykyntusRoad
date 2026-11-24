@@ -3,48 +3,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import {
-  CheckCircle2,
-  Clock3,
-  Files,
-  Hourglass,
-  LayoutDashboard,
-  Shuffle,
-  TableProperties,
-  TriangleAlert,
-  UserX,
-  Workflow,
-  type LucideIcon,
-} from "lucide-react";
+import { CheckCircle2, Clock3, Gauge, Hourglass, Shuffle, TableProperties, TriangleAlert, UserX, Workflow, type LucideIcon } from "lucide-react";
 import { DayCalendar } from "../../components/calendar/DayCalendar/DayCalendar";
+import { DossierDrawer } from "../../components/drawer/DossierDrawer/DossierDrawer";
 import { PageHeader } from "../../components/layout/PageHeader/PageHeader";
 import { useToast } from "../../components/toast/ToastProvider/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 import { dashboardService } from "../../services/dashboardService";
-import type { BatchSummary, DayStat } from "../../types";
+import { dossierService } from "../../services/dossierService";
+import { DELAY_LABELS, type BatchSummary, type DayStat, type Delay, type DossierRow, type DossierTable } from "../../types";
 import { formatDateLong, formatDateTime, toIsoDate, today } from "../../utils/date";
 import { fileLinks } from "../FilesView/FilesView";
+import { DayRibbon, dateRange } from "./DayRibbon";
 import styles from "./DashboardView.module.css";
 
-/** Range of the counters: three months back, two weeks ahead. */
+/** Counters: three months back, two weeks ahead. Ribbon: three weeks back, one week ahead. */
 const BACK = 90;
 const AHEAD = 14;
+const RIBBON_BACK = 21;
+const RIBBON_AHEAD = 7;
+
+const DELAY_COLOR: Record<Delay, string> = { LATE: "#f0435a", SOON: "#ff8a3d", ON_TIME: "#2f6bff", DONE: "#12b5a6" };
+const DELAY_ORDER: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE"];
 
 const shiftIso = (iso: string, days: number) => {
   const [y, m, d] = iso.split("-").map(Number);
   return toIsoDate(new Date(y, m - 1, d + days));
 };
 
-/** Writes the cursor position as CSS variables (card spotlight, no React render). */
-function track(e: React.PointerEvent<HTMLElement>) {
-  const r = e.currentTarget.getBoundingClientRect();
-  e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
-  e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
-}
-
 /**
- * Global view of the admins (admin and sécurisation admin): what is late or about to be, the state of
- * every date in a coloured calendar (past dates included), the open delays day by day and the last files.
+ * Global view of the admins: the ribbon of the days (what each date became, past dates included),
+ * the counters to act on, a calendar, and for the chosen day the list of its dossiers (click one to
+ * open its life cycle).
  */
 export function DashboardView() {
   const { user } = useAuth();
@@ -72,13 +62,15 @@ export function DashboardView() {
     };
   }, [todayIso, toast]);
 
-  // the calendar asks for its visible weeks
   const loadMonth = useCallback((from: string, to: string) => {
     dashboardService.days(from, to).then(
       (list) => setMonth(new Map(list.map((d) => [d.date, d]))),
       () => undefined,
     );
   }, []);
+
+  const byDate = useMemo(() => new Map((range ?? []).map((d) => [d.date, d])), [range]);
+  const ribbon = useMemo(() => dateRange(shiftIso(todayIso, -RIBBON_BACK), shiftIso(todayIso, RIBBON_AHEAD)), [todayIso]);
 
   const totals = useMemo(() => {
     const t = { late: 0, soon: 0, onTime: 0, done: 0, unassignedSecu: 0, unassignedJ: 0, planif: 0, lateDays: [] as DayStat[] };
@@ -98,25 +90,23 @@ export function DashboardView() {
     return t;
   }, [range, todayIso]);
 
-  const day = month.get(selected) ?? range?.find((d) => d.date === selected);
   const base = isSecAdmin ? "/securisation/espace" : "/admin/suivi";
-  const dispatchBase = isSecAdmin ? "/securisation/dispatch" : "/admin/dispatch?team=J&";
-  const dispatchHref = (date: string) => (isSecAdmin ? `${dispatchBase}?date=${date}` : `${dispatchBase}date=${date}`);
+  const dispatchHref = (date: string) => (isSecAdmin ? `/securisation/dispatch?date=${date}` : `/admin/dispatch?team=J&date=${date}`);
 
-  const kpis: { label: string; value: number; hint: string; icon: LucideIcon; accent: string; href: string }[] = [
-    { label: "En retard", value: totals.late, hint: "Après J+1 12h00, non clôturés", icon: TriangleAlert, accent: "#ef4444", href: `${base}?date=&delay=LATE` },
-    { label: "Bientôt", value: totals.soon, hint: "J+1 avant 12h00", icon: Hourglass, accent: "#f97316", href: `${base}?date=&delay=SOON` },
-    { label: "Dans les délais", value: totals.onTime, hint: "Aujourd'hui et à venir", icon: Clock3, accent: "#3b82f6", href: `${base}?date=&delay=ON_TIME` },
-    { label: "Clôturés", value: totals.done, hint: `Sur ${BACK} jours`, icon: CheckCircle2, accent: "#10b981", href: `${base}?date=&delay=DONE` },
+  const tiles: { label: string; value: number; hint: string; icon: LucideIcon; accent: string; href: string }[] = [
+    { label: "En retard", value: totals.late, hint: "Passé J+1 12h00", icon: TriangleAlert, accent: "#f0435a", href: `${base}?date=&delay=LATE` },
+    { label: "Bientôt en retard", value: totals.soon, hint: "J+1 avant midi", icon: Hourglass, accent: "#ff8a3d", href: `${base}?date=&delay=SOON` },
+    { label: "Dans les délais", value: totals.onTime, hint: "Aujourd'hui et à venir", icon: Clock3, accent: "#2f6bff", href: `${base}?date=&delay=ON_TIME` },
+    { label: "Clôturés", value: totals.done, hint: `Sur ${BACK} jours`, icon: CheckCircle2, accent: "#12b5a6", href: `${base}?date=&delay=DONE` },
     isSecAdmin
-      ? { label: "Sans pilote", value: totals.unassignedSecu, hint: "Sécurisation, à dispatcher", icon: UserX, accent: "#a78bfa", href: "/securisation/dispatch" }
-      : { label: "Sans agent J", value: totals.unassignedJ, hint: "À dispatcher", icon: UserX, accent: "#a78bfa", href: "/admin/dispatch?team=J" },
+      ? { label: "Sans pilote", value: totals.unassignedSecu, hint: "À dispatcher", icon: UserX, accent: "#8b7cf6", href: "/securisation/dispatch" }
+      : { label: "Sans agent J", value: totals.unassignedJ, hint: "À dispatcher", icon: UserX, accent: "#8b7cf6", href: "/admin/dispatch?team=J" },
     {
       label: "À planifier",
       value: totals.planif,
-      hint: "Cellule plani ≠ Planifié",
+      hint: "Cellule plani autre que Planifié",
       icon: Workflow,
-      accent: "#c084fc",
+      accent: "#8b7cf6",
       href: isSecAdmin ? "/securisation/espace?route=PLANIFICATION" : "/admin/planification",
     },
   ];
@@ -126,114 +116,100 @@ export function DashboardView() {
       <PageHeader
         eyebrow="Vision globale"
         title="Tableau de bord"
-        description="Ce qui est en retard, ce qui va l'être, et l'état de chaque date — même passée. Cliquez sur un jour du calendrier pour voir ce qui s'y est passé."
-        icon={<LayoutDashboard />}
+        description="Ce que chaque date est devenue, même passée : ouvrez un jour pour voir ses dossiers et leur cycle de vie."
+        icon={<Gauge />}
       />
 
-      <div className={styles.kpis}>
-        {kpis.map((k, i) => (
+      <DayRibbon dates={ribbon} stats={byDate} today={todayIso} selected={selected} onSelect={setSelected} />
+
+      <div className={styles.tiles}>
+        {tiles.map((t, i) => (
           <motion.div
-            key={k.label}
+            key={t.label}
             initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 340, damping: 30, delay: i * 0.05 }}
+            transition={{ type: "spring", stiffness: 360, damping: 34, delay: 0.15 + i * 0.045 }}
           >
-            <Link href={k.href} className={styles.kpi} style={{ "--accent": k.accent } as React.CSSProperties} onPointerMove={track}>
-              <span className={styles.kpiLabel}>
-                <k.icon aria-hidden /> {k.label}
+            <Link href={t.href} className={styles.tile} style={{ "--accent": t.accent } as React.CSSProperties}>
+              <span className={styles.tileHead}>
+                {t.label}
+                <span className={styles.tileIcon}>
+                  <t.icon aria-hidden />
+                </span>
               </span>
-              <div className={styles.kpiValue}>{range ? k.value : "—"}</div>
-              <div className={styles.kpiHint}>{k.hint}</div>
+              <div className={styles.tileValue}>{range ? t.value : "–"}</div>
+              <div className={styles.tileHint}>{t.hint}</div>
             </Link>
           </motion.div>
         ))}
       </div>
 
       <div className={styles.bento}>
-        <section className={styles.panel} aria-label="Calendrier des dossiers">
-          <h2 className={styles.title}>Calendrier des dossiers</h2>
+        <section className={styles.glass} aria-label="Calendrier">
           <DayCalendar size="lg" value={selected} onSelect={(d) => setSelected(d)} stats={month} onMonthChange={loadMonth} />
         </section>
 
         <div className={styles.side}>
-          <section className={styles.panel} aria-label="Jour sélectionné">
-            <h2 className={styles.title}>Jour sélectionné</h2>
-            <p className={styles.dayHead}>{formatDateLong(selected)}</p>
-            {day && day.total > 0 ? (
-              <>
-                <div className={styles.dayGrid}>
-                  <DayStatBox label="Dossiers" value={day.total} color="#0f172a" />
-                  <DayStatBox label="Clôturés" value={day.done} color="#059669" />
-                  <DayStatBox label="En retard" value={day.late} color="#dc2626" />
-                  <DayStatBox label="Bientôt en retard" value={day.soon} color="#ea580c" />
-                  <DayStatBox label="Dans les délais" value={day.onTime} color="#2563eb" />
-                  <DayStatBox label="Hors sécurisation" value={day.horsSecu} color="#64748b" />
-                  <DayStatBox label="En planification" value={day.planification} color="#7c3aed" />
-                  <DayStatBox label={isSecAdmin ? "Sans pilote" : "Sans agent J"} value={isSecAdmin ? day.unassignedSecu : day.unassignedJ} color="#7c3aed" />
-                </div>
-                <div className={styles.buttons}>
-                  <Link href={`${base}?date=${selected}`} className={`${styles.button} ${styles.primary}`}>
-                    <TableProperties /> Ouvrir ce jour
-                  </Link>
-                  {day.done < day.total && (
-                    <Link href={dispatchHref(selected)} className={`${styles.button} ${styles.soft}`}>
-                      <Shuffle /> Redispatcher les non traités
-                    </Link>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className={styles.empty}>Aucun dossier ce jour-là.</p>
-            )}
-          </section>
+          <DayPanel
+            key={selected}
+            date={selected}
+            stat={month.get(selected) ?? byDate.get(selected)}
+            openHref={`${base}?date=${selected}`}
+            dispatchHref={dispatchHref(selected)}
+          />
 
-          <section className={styles.panelDark} aria-label="Retards ouverts">
-            <h2 className={styles.title}>
-              Retards ouverts
-              <span className={styles.titleLink}>{totals.lateDays.length} jour(s)</span>
+          <section className={styles.glass} aria-label="Retards ouverts">
+            <h2 className={styles.h2}>
+              Retards encore ouverts
+              <small>{totals.lateDays.length} jour(s)</small>
             </h2>
             {totals.lateDays.length === 0 ? (
-              <p className={styles.empty}>Aucun dossier en retard.</p>
+              <p className={styles.empty}>Aucun dossier en retard. Rien à rattraper.</p>
             ) : (
               <div className={`${styles.lateList} scroll-thin`}>
                 {totals.lateDays.map((d) => (
-                  <Link key={d.date} href={`${base}?date=${d.date}&delay=LATE`} className={styles.lateRow}>
+                  <button key={d.date} type="button" className={styles.lateRow} onClick={() => setSelected(d.date)} style={{ border: 0, font: "inherit", cursor: "pointer", textAlign: "left" }}>
                     <TriangleAlert size={15} aria-hidden />
                     <span className={styles.lateDate}>{formatDateLong(d.date)}</span>
-                    <span className={styles.lateCount}>{d.late} / {d.total}</span>
-                  </Link>
+                    <span className={styles.lateCount}>
+                      {d.late} sur {d.total}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
           </section>
 
-          <section className={styles.panelDark} aria-label="Derniers fichiers">
-            <h2 className={styles.title}>
+          <section className={styles.glass} aria-label="Derniers fichiers">
+            <h2 className={styles.h2}>
               Derniers fichiers
-              <Link href={isSecAdmin ? "/securisation/fichiers" : "/admin/fichiers"} className={styles.titleLink}>
-                Tous <Files size={12} style={{ display: "inline", verticalAlign: "-2px" }} />
+              <Link href={isSecAdmin ? "/securisation/fichiers" : "/admin/fichiers"} className={styles.link}>
+                Voir tous les fichiers
               </Link>
             </h2>
-            {batches && batches.length === 0 && <p className={styles.empty}>Aucun fichier importé.</p>}
+            {batches && batches.length === 0 && <p className={styles.empty}>Aucun fichier importé pour l&apos;instant.</p>}
             <div className={styles.fileList}>
-              {(batches ?? []).filter((b) => !b.rolledBack).slice(0, 5).map((b) => {
-                const total = Math.max(b.dossiers, 1);
-                const w = (n: number) => `${(n / total) * 100}%`;
-                return (
-                  <Link key={b.id} href={fileLinks(b, isSecAdmin).table} className={styles.fileRow}>
-                    <span className={styles.fileName} title={b.fileName}>
-                      {b.fileName}
-                    </span>
-                    <span className={styles.fileMeta}>{formatDateTime(b.importedAt)}</span>
-                    <span className={styles.fileBar} aria-hidden>
-                      <span style={{ width: w(b.done), background: "#10b981" }} />
-                      <span style={{ width: w(b.onTime), background: "#3b82f6" }} />
-                      <span style={{ width: w(b.soon), background: "#f97316" }} />
-                      <span style={{ width: w(b.late), background: "#ef4444" }} />
-                    </span>
-                  </Link>
-                );
-              })}
+              {(batches ?? [])
+                .filter((b) => !b.rolledBack)
+                .slice(0, 5)
+                .map((b) => {
+                  const total = Math.max(b.dossiers, 1);
+                  const w = (n: number) => `${(n / total) * 100}%`;
+                  return (
+                    <Link key={b.id} href={fileLinks(b, isSecAdmin).table} className={styles.fileRow}>
+                      <span className={styles.fileName} title={b.fileName}>
+                        {b.fileName}
+                      </span>
+                      <span className={styles.fileMeta}>{formatDateTime(b.importedAt)}</span>
+                      <span className={styles.fileBar} aria-hidden>
+                        <span style={{ width: w(b.done), background: "#12b5a6" }} />
+                        <span style={{ width: w(b.onTime), background: "#2f6bff" }} />
+                        <span style={{ width: w(b.soon), background: "#ff8a3d" }} />
+                        <span style={{ width: w(b.late), background: "#f0435a" }} />
+                      </span>
+                    </Link>
+                  );
+                })}
             </div>
           </section>
         </div>
@@ -242,13 +218,105 @@ export function DashboardView() {
   );
 }
 
-function DayStatBox({ label, value, color }: { label: string; value: number; color: string }) {
+type Tab = Delay | "ALL";
+
+/** The chosen day: its counts, its dossiers (late first), filter by delay, click one = its life cycle. */
+function DayPanel({ date, stat, openHref, dispatchHref }: { date: string; stat?: DayStat; openHref: string; dispatchHref: string }) {
+  const reduce = useReducedMotion();
+  const [table, setTable] = useState<DossierTable | null>(null);
+  const [tab, setTab] = useState<Tab>("ALL");
+  const [open, setOpen] = useState<DossierRow | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    dossierService.search({ date, search: "", filters: [], sort: null, page: 0, size: 200 }).then(
+      (t) => !cancelled && setTable(t),
+      () => !cancelled && setTable(null),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [date]);
+
+  const rows = useMemo(() => {
+    const list = [...(table?.rows.content ?? [])];
+    list.sort((a, b) => DELAY_ORDER.indexOf(a.delay) - DELAY_ORDER.indexOf(b.delay) || a.idExterne.localeCompare(b.idExterne));
+    return tab === "ALL" ? list : list.filter((r) => r.delay === tab);
+  }, [table, tab]);
+
+  const count = (d: Delay) => table?.rows.content.filter((r) => r.delay === d).length ?? 0;
+  const total = table?.rows.totalElements ?? stat?.total ?? 0;
+  const tabs: { id: Tab; label: string; n: number; color?: string }[] = [
+    { id: "ALL", label: "Tous", n: total },
+    ...DELAY_ORDER.map((d) => ({ id: d as Tab, label: DELAY_LABELS[d], n: count(d), color: DELAY_COLOR[d] })).filter((t) => t.n > 0),
+  ];
+
   return (
-    <div className={styles.dayStat}>
-      <div className={styles.dayStatValue} style={{ color }}>
-        {value}
-      </div>
-      <div className={styles.dayStatLabel}>{label}</div>
-    </div>
+    <section className={styles.glass} aria-label="Jour sélectionné">
+      <p className={styles.dayTitle}>{formatDateLong(date)}</p>
+      <p className={styles.daySummary}>
+        {total === 0
+          ? "Aucun dossier ce jour-là."
+          : `${total} dossier(s), ${stat?.done ?? count("DONE")} clôturé(s), ${stat?.late ?? count("LATE")} en retard.`}
+      </p>
+
+      {total > 0 && (
+        <>
+          <div className={styles.tabs} role="tablist" aria-label="Filtrer les dossiers du jour">
+            {tabs.map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`${styles.tab} ${tab === t.id ? styles.tabOn : ""}`} onClick={() => setTab(t.id)}>
+                {tab === t.id && <motion.span layoutId={`day-tab-${date}`} className={styles.tabPill} transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
+                {t.color && <i style={{ background: t.color }} />}
+                {t.label} <b>{t.n}</b>
+              </button>
+            ))}
+          </div>
+
+          <div className={`${styles.rows} scroll-thin`}>
+            {rows.map((r, i) => (
+              <motion.button
+                key={r.id}
+                type="button"
+                className={styles.row}
+                onClick={() => setOpen(r)}
+                initial={reduce ? false : { opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ type: "spring", stiffness: 420, damping: 36, delay: Math.min(i, 14) * 0.025 }}
+                title="Ouvrir le cycle de vie"
+              >
+                <span className={styles.rowDot} style={{ background: DELAY_COLOR[r.delay] }} />
+                <span style={{ minWidth: 0 }}>
+                  <span className={styles.rowId}>{r.idExterne}</span>
+                  <span className={styles.rowMeta} style={{ display: "block" }}>
+                    {[r.planification ? "En planification" : null, r.horsSecu ? "Hors sécurisation" : null, r.assignedJ ? `Agent ${r.assignedJ}` : null, r.assignedTo ? `Pilote ${r.assignedTo}` : null]
+                      .filter(Boolean)
+                      .join(", ") || "Non attribué"}
+                  </span>
+                </span>
+                <span className={styles.rowDelay} style={{ color: DELAY_COLOR[r.delay], background: `${DELAY_COLOR[r.delay]}1a` }}>
+                  {DELAY_LABELS[r.delay]}
+                </span>
+              </motion.button>
+            ))}
+            {table && table.rows.totalElements > table.rows.content.length && (
+              <p className={styles.empty}>Les 200 premiers dossiers sont affichés : ouvrez le jour pour tout voir.</p>
+            )}
+          </div>
+
+          <div className={styles.buttons}>
+            <Link href={openHref} className={`${styles.button} ${styles.primary}`}>
+              <TableProperties aria-hidden /> Ouvrir ce jour dans le suivi
+            </Link>
+            {(stat?.done ?? 0) < total && (
+              <Link href={dispatchHref} className={`${styles.button} ${styles.soft}`}>
+                <Shuffle aria-hidden /> Redispatcher les non traités
+              </Link>
+            )}
+          </div>
+        </>
+      )}
+
+      <DossierDrawer row={open} columns={table?.sourceColumns ?? []} fields={table?.fields ?? []} onClose={() => setOpen(null)} />
+    </section>
   );
 }

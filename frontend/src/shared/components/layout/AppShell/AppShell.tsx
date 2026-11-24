@@ -37,10 +37,11 @@ function Frame({ children }: { children: React.ReactNode }) {
   useHotkey(ctrlK, togglePalette);
 
   return (
-    <div className="app-canvas flex h-dvh overflow-hidden">
+    <div className="app-canvas relative flex h-dvh overflow-hidden">
+      {/* pastel aurora behind everything: the glass sidebar and top bar frost it */}
+      <AuroraBackground />
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <AuroraBackground />
         <InteractiveGrid />
         <Topbar />
         <main className="scroll-thin relative flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">

@@ -1,14 +1,37 @@
 /*
- * Aurora: three soft colour orbs drifting slowly behind the content.
- * Performance: the orbs are plain radial gradients (no CSS filter), each on its own GPU layer,
- * and only `transform` is animated. The parallax layer is moved by JS with translate3d.
+ * Sky clock: the canvas is a pale sky whose light follows the time of day (the whole job is a race
+ * to J+1 12:00). Morning blue, bright noon, warm late afternoon, lavender evening.
+ * Colours are CSS variables set once every 10 minutes by the component; the clouds drift with
+ * `transform` only, each on its own GPU layer, no CSS filter.
  */
 .root {
+  --sky-top: #dcebff;
+  --sky-bottom: #eef2f8;
+  --sun: rgb(255 214 170 / 0.55);
+  --sun-x: 20%;
+  --cloud-a: rgb(47 107 255 / 0.14);
+  --cloud-b: rgb(139 124 246 / 0.13);
+  --cloud-c: rgb(18 181 166 / 0.1);
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   contain: strict;
+  background:
+    radial-gradient(60vmax 38vmax at var(--sun-x) -8%, var(--sun), transparent 65%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 62%);
+  transition: background 2s linear;
+}
+
+/* the horizon: a faint line where the deadline lives (12:00), purely decorative */
+.root::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(20 33 61 / 0.06) 20%, rgb(20 33 61 / 0.06) 80%, transparent);
 }
 
 .parallax {
@@ -17,74 +40,64 @@
   will-change: transform;
 }
 
-.orb {
+.cloud {
   position: absolute;
   border-radius: 50%;
   will-change: transform;
   backface-visibility: hidden;
 }
 
-.blue {
-  top: -18%;
-  right: -10%;
-  width: 62vmax;
-  height: 46vmax;
-  background: radial-gradient(closest-side, rgb(59 130 246 / 0.32), rgb(59 130 246 / 0.1) 55%, transparent);
-  animation: driftA 26s ease-in-out infinite alternate;
-}
-
-.sky {
-  bottom: -22%;
-  left: -14%;
-  width: 54vmax;
-  height: 44vmax;
-  background: radial-gradient(closest-side, rgb(34 211 238 / 0.22), rgb(34 211 238 / 0.07) 55%, transparent);
-  animation: driftB 32s ease-in-out infinite alternate;
-}
-
-.violet {
-  top: 28%;
-  left: 34%;
-  width: 40vmax;
+.a {
+  top: -10%;
+  right: -6%;
+  width: 52vmax;
   height: 30vmax;
-  background: radial-gradient(closest-side, rgb(139 92 246 / 0.24), rgb(139 92 246 / 0.06) 55%, transparent);
-  animation: driftC 38s ease-in-out infinite alternate;
+  background: radial-gradient(closest-side, var(--cloud-a), transparent);
+  animation: driftA 40s ease-in-out infinite alternate;
+}
+
+.b {
+  top: 30%;
+  left: -12%;
+  width: 46vmax;
+  height: 28vmax;
+  background: radial-gradient(closest-side, var(--cloud-b), transparent);
+  animation: driftB 52s ease-in-out infinite alternate;
+}
+
+.c {
+  bottom: -14%;
+  right: 14%;
+  width: 44vmax;
+  height: 26vmax;
+  background: radial-gradient(closest-side, var(--cloud-c), transparent);
+  animation: driftC 60s ease-in-out infinite alternate;
 }
 
 @keyframes driftA {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
   to {
-    transform: translate3d(-6vmax, 4vmax, 0) scale(1.08);
+    transform: translate3d(-7vmax, 3vmax, 0);
   }
 }
 
 @keyframes driftB {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.05);
-  }
   to {
-    transform: translate3d(7vmax, -5vmax, 0) scale(0.95);
+    transform: translate3d(8vmax, -3vmax, 0);
   }
 }
 
 @keyframes driftC {
-  from {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
   to {
-    transform: translate3d(-5vmax, -3vmax, 0) rotate(25deg);
+    transform: translate3d(-6vmax, -4vmax, 0);
   }
 }
 
-/* Hidden tab: no animation work at all. */
-.paused .orb {
+.paused .cloud {
   animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb {
+  .cloud {
     animation: none;
   }
 

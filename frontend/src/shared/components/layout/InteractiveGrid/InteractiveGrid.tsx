@@ -82,7 +82,7 @@ export function InteractiveGrid() {
           flat.moveTo(prev[0], prev[1]);
           flat.lineTo(cur[0], cur[1]);
         } else {
-          ctx.strokeStyle = `rgba(${Math.round(125 - 69 * f)},${Math.round(180 + 31 * f)},${Math.round(252 - 14 * f)},${(0.06 + 0.5 * f).toFixed(3)})`;
+          ctx.strokeStyle = `rgba(${Math.round(47 + 10 * f)},${Math.round(107 + 60 * f)},${Math.round(255 - 20 * f)},${(0.05 + 0.4 * f).toFixed(3)})`;
           ctx.lineWidth = 1 + f * 0.9;
           ctx.beginPath();
           ctx.moveTo(prev[0], prev[1]);
@@ -129,7 +129,7 @@ export function InteractiveGrid() {
         }
       }
 
-      ctx.strokeStyle = "rgba(125,180,252,0.06)";
+      ctx.strokeStyle = "rgba(47,107,255,0.05)";
       ctx.lineWidth = 1;
       ctx.stroke(flat);
 
@@ -141,7 +141,7 @@ export function InteractiveGrid() {
             if (Math.abs(y - cy) > RADIUS * 1.6) continue;
             const [nx, ny, f] = project(x, y);
             if (f < 0.08) continue;
-            ctx.fillStyle = `rgba(103,232,249,${(0.8 * f).toFixed(3)})`;
+            ctx.fillStyle = `rgba(47,107,255,${(0.55 * f).toFixed(3)})`;
             ctx.beginPath();
             ctx.arc(nx, ny, 1 + 1.6 * f, 0, Math.PI * 2);
             ctx.fill();

@@ -24,8 +24,8 @@ export function Topbar() {
   const name = user?.fullName || user?.username || "";
 
   return (
-    <header className="relative z-30 flex h-16 shrink-0 items-center gap-3 bg-[#060a22]/70 px-4 text-white backdrop-blur-md sm:px-6 lg:px-8">
-      <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-cyan-300/40 to-transparent" />
+    <header className="relative z-30 mx-3 mt-3 flex h-14 shrink-0 items-center gap-3 rounded-[20px] border border-white/70 bg-white/55 px-3 text-slate-900 shadow-[inset_0_1px_0_#fff,0_10px_30px_-18px_rgb(20_33_61/0.35)] backdrop-blur-xl sm:px-4 lg:ml-0">
+      <span aria-hidden className="absolute inset-x-6 bottom-0 h-px bg-linear-to-r from-transparent via-[#2F6BFF]/25 to-transparent" />
 
       <IconButton label="Menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
         <Menu />
@@ -34,10 +34,10 @@ export function Topbar() {
       <nav aria-label="Fil d'Ariane" className="flex min-w-0 items-center gap-2.5 text-sm">
         {current && CurrentIcon && (
           <>
-            <span className="hidden font-mono text-[10px] tracking-[0.2em] whitespace-nowrap text-cyan-300/70 uppercase sm:inline">{current.section.title}</span>
-            <span className="hidden h-3.5 w-px rotate-12 bg-white/20 sm:inline" />
-            <span className="flex min-w-0 items-center gap-2 font-semibold text-white">
-              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-300/30">
+            <span className="hidden font-mono text-[11px] whitespace-nowrap text-slate-400 sm:inline">{current.section.title}</span>
+            <span className="hidden h-3.5 w-px rotate-12 bg-slate-300 sm:inline" />
+            <span className="flex min-w-0 items-center gap-2 font-semibold text-[#14213D]">
+              <span className="grid size-7 shrink-0 place-items-center rounded-[10px] bg-[#EEF2F8] text-[#2F6BFF] shadow-[-3px_-3px_6px_#fff,3px_3px_8px_rgb(100_116_160/0.25)]">
                 <CurrentIcon className="size-3.5" />
               </span>
               <span className="truncate">{current.item.label}</span>
@@ -49,11 +49,11 @@ export function Topbar() {
       <div className="ml-auto flex items-center gap-2">
         <button
           onClick={() => setPaletteOpen(true)}
-          className="group hidden h-10 w-72 items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 text-sm text-slate-400 ring-1 ring-white/10 transition-[box-shadow,color] duration-300 ring-inset hover:text-slate-200 hover:shadow-[0_0_0_4px_rgb(34_211_238/0.08),0_0_24px_-8px_rgb(34_211_238/0.6)] hover:ring-cyan-300/40 md:flex"
+          className="group hidden h-10 w-72 items-center gap-2.5 rounded-[14px] bg-[#EEF2F8] px-3 text-sm text-slate-400 shadow-[inset_2px_2px_5px_rgb(100_116_160/0.22),inset_-2px_-2px_5px_#fff] transition-[box-shadow,color] duration-200 hover:text-slate-600 md:flex"
         >
-          <Search className="size-4 shrink-0 transition-colors group-hover:text-cyan-300" />
+          <Search className="size-4 shrink-0 transition-colors group-hover:text-[#2F6BFF]" />
           <span className="truncate whitespace-nowrap">Rechercher un dossier…</span>
-          <kbd className="ml-auto shrink-0 rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-slate-400 ring-1 ring-white/10">
+          <kbd className="ml-auto shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-slate-500 shadow-[0_1px_2px_rgb(15_23_42/0.08)]">
             Ctrl K
           </kbd>
         </button>
@@ -62,23 +62,23 @@ export function Topbar() {
         </IconButton>
         <FlagLegendButton />
 
-        <span className="hidden h-10 items-center gap-2 rounded-xl bg-emerald-400/10 px-3 font-mono text-[10px] font-medium tracking-[0.16em] text-emerald-300 uppercase ring-1 ring-emerald-300/25 ring-inset 2xl:flex">
+        <span className="hidden h-10 items-center gap-2 rounded-[14px] bg-[#12B5A6]/10 px-3 text-xs font-medium text-[#0E8F84] 2xl:flex">
           <LiveDot /> Synchronisé
         </span>
 
-        <div className="hidden h-10 items-center gap-2 rounded-xl bg-white/[0.05] px-3 text-xs font-medium whitespace-nowrap text-slate-300 ring-1 ring-white/10 ring-inset xl:flex">
-          <CalendarDays className="size-4 text-cyan-300" />
+        <div className="hidden h-10 items-center gap-2 rounded-[14px] bg-white/70 px-3 text-xs font-medium whitespace-nowrap text-slate-600 xl:flex">
+          <CalendarDays className="size-4 text-[#2F6BFF]" />
           <span className="first-letter:uppercase">{formatDateLong(today())}</span>
         </div>
 
         <button
           onClick={(e) => setMenuAnchor(menuAnchor ? null : e.currentTarget)}
-          className="flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors hover:bg-white/[0.06]"
+          className="flex items-center gap-2 rounded-[14px] p-1 pr-2 transition-colors hover:bg-white/80"
           aria-label="Menu utilisateur"
         >
           <Avatar1 name={name} size="sm" />
-          <span className="hidden max-w-32 truncate text-sm font-medium text-slate-200 sm:inline">{name}</span>
-          <ChevronDown className="size-4 text-slate-500" />
+          <span className="hidden max-w-32 truncate text-sm font-medium text-slate-700 sm:inline">{name}</span>
+          <ChevronDown className="size-4 text-slate-400" />
         </button>
         <DropdownMenu
           anchor={menuAnchor}

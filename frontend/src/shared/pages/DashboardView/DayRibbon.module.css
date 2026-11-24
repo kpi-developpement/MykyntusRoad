@@ -1,0 +1,212 @@
+/*
+ * Ribbon of the days: one capsule per date, its height = number of dossiers, filled bottom-up with
+ * closed / on time / J+1 morning / late. "Aujourd'hui" is marked; the chosen day is pressed in.
+ */
+.wrap {
+  position: relative;
+  padding: 1.1rem 1.2rem 0.9rem;
+  border-radius: 28px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  background: linear-gradient(165deg, rgb(255 255 255 / 0.78), rgb(244 248 255 / 0.55));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 30px 60px -40px rgb(20 33 61 / 0.45);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #14213d;
+}
+
+.sub {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(18px, 1fr);
+  align-items: end;
+  gap: 6px;
+  height: 168px;
+  padding-bottom: 26px;
+  position: relative;
+}
+
+/* the deadline line: J+1 12:00 of yesterday's dossiers sits on today */
+.col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.col:focus-visible {
+  outline: 2px solid #2f6bff;
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+.capsule {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  width: 100%;
+  max-width: 26px;
+  min-height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f8;
+  box-shadow:
+    inset 2px 2px 4px rgb(100 116 160 / 0.22),
+    inset -2px -2px 4px #fff;
+  transform-origin: bottom;
+  animation: grow 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i) * 14ms);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.col:hover .capsule {
+  transform: scaleX(1.25);
+}
+
+@keyframes grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.capsule span {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.done {
+  background: #12b5a6;
+}
+
+.onTime {
+  background: #2f6bff;
+}
+
+.soon {
+  background: #ff8a3d;
+}
+
+.late {
+  background: #f0435a;
+}
+
+.empty .capsule {
+  opacity: 0.5;
+}
+
+.day {
+  position: absolute;
+  bottom: -22px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.monday .day {
+  color: #475569;
+}
+
+.today .day {
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #2f6bff;
+  color: #fff;
+}
+
+.today::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: 0;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, #2f6bff 0 4px, transparent 4px 8px);
+  opacity: 0.6;
+}
+
+.selected .capsule {
+  box-shadow: 0 0 0 2px #14213d;
+}
+
+.count {
+  margin-bottom: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+.col:hover .count,
+.selected .count {
+  opacity: 1;
+  transform: none;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capsule {
+    animation: none;
+    transition: none;
+  }
+
+  .col:hover .capsule {
+    transform: none;
+  }
+}

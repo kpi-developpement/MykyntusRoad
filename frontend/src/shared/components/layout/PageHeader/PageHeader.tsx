@@ -1,6 +1,5 @@
 import { cn } from "../../../utils/cn";
-import { RevealText } from "../../text/RevealText/RevealText";
-import { ScrambleText } from "../../text/ScrambleText/ScrambleText";
+import { KineticTitle } from "../../text/KineticTitle/KineticTitle";
 
 interface PageHeaderProps {
   eyebrow?: string;
@@ -11,31 +10,22 @@ interface PageHeaderProps {
   className?: string;
 }
 
-/** Page title: decoded eyebrow, words revealed one by one, glowing icon tile. */
+/** Page title: neumorphic icon key, kinetic headline, the section it belongs to and a short description. */
 export function PageHeader({ eyebrow, title, description, icon, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn("mb-8 flex flex-wrap items-end justify-between gap-4", className)}>
-      <div className="flex min-w-0 items-start gap-4">
+    <div className={cn("mb-7 flex flex-wrap items-end justify-between gap-4", className)}>
+      <div className="flex min-w-0 items-center gap-4">
         {icon && (
-          <span className="relative hidden size-14 shrink-0 animate-scale-in place-items-center overflow-hidden rounded-2xl bg-linear-to-br from-cyan-400 via-blue-600 to-violet-700 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_0_0_1px_rgb(103_232_249/0.25),0_14px_40px_-10px_rgb(34_211_238/0.6)] sm:grid [&_svg]:size-6">
-            <span aria-hidden className="absolute -top-1/2 -left-1/2 size-full rotate-12 bg-linear-to-br from-white/40 to-transparent" />
-            <span aria-hidden className="absolute inset-x-2 bottom-1.5 h-px bg-linear-to-r from-transparent via-sky-300 to-transparent" />
-            <span className="relative">{icon}</span>
+          <span className="relative hidden size-14 shrink-0 animate-scale-in place-items-center rounded-[20px] bg-[#EEF2F8] text-[#2F6BFF] shadow-[-6px_-6px_14px_#fff,7px_8px_18px_rgb(100_116_160/0.3)] sm:grid [&_svg]:size-6">
+            {icon}
           </span>
         )}
         <div className="min-w-0">
-          {eyebrow && (
-            <p className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.24em] text-cyan-300 uppercase">
-              <span aria-hidden className="h-px w-6 bg-linear-to-r from-cyan-300 to-violet-400" />
-              <ScrambleText text={eyebrow} />
-            </p>
-          )}
-          <h1 className="mt-1.5 font-display text-[28px] leading-[1.1] font-semibold tracking-tight text-white sm:text-[34px]">
-            <RevealText text={title} delay={0.05} />
+          {eyebrow && <p className="flex items-center gap-2 text-[13px] font-medium text-slate-500">{eyebrow}</p>}
+          <h1 className="mt-0.5 font-display text-[30px] leading-[1.08] font-bold tracking-[-0.025em] text-[#14213D] sm:text-[36px]">
+            <KineticTitle text={title} delay={0.05} />
           </h1>
-          {description && (
-            <p className="mt-2.5 max-w-2xl animate-fade-in text-sm leading-relaxed text-slate-400 [animation-delay:0.3s]">{description}</p>
-          )}
+          {description && <p className="mt-2 max-w-2xl animate-fade-in text-sm leading-relaxed text-slate-500 [animation-delay:0.3s]">{description}</p>}
         </div>
       </div>
       {actions && <div className="flex animate-fade-in flex-wrap items-center gap-2 [animation-delay:0.25s]">{actions}</div>}

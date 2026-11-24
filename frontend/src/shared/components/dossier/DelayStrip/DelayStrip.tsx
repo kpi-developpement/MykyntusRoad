@@ -40,8 +40,8 @@ export function DelayStrip({ grid }: { grid: DossierGrid }) {
 
   return (
     <div className="mb-3 flex items-center gap-3">
-      <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase sm:inline-flex">
-        <Clock3 className="size-3.5 text-cyan-300" /> Délai
+      <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-500 uppercase sm:inline-flex">
+        <Clock3 className="size-3.5 text-indigo-500" /> Délai
       </span>
       <div className="scroll-thin -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-1">
         {SHOWN.map((d) => {

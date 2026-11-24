@@ -2,9 +2,8 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ListFilter, Search, X } from "lucide-react";
-import { PROGRESS_LABELS, SECTION_LABELS, type ColumnFilter, type FieldSection, type ProgressStatus } from "../../../types";
-import { formatDate } from "../../../utils/date";
-import { OP_LABELS } from "../FilterPopover/ConditionFilter";
+import type { ColumnFilter } from "../../../types";
+import { filterLabel, filterValue } from "../FilterDock/FilterDock";
 import type { GridColumn } from "../DataGrid/types";
 
 interface FilterChipsProps<T> {
@@ -17,21 +16,6 @@ interface FilterChipsProps<T> {
   onClearAll: () => void;
 }
 
-function summary<T>(filter: ColumnFilter, column?: GridColumn<T>): string {
-  if (filter.op === "between" || (!filter.op && (filter.from || filter.to))) {
-    if (filter.from && filter.to) return filter.from === filter.to ? `le ${formatDate(filter.from)}` : `du ${formatDate(filter.from)} au ${formatDate(filter.to)}`;
-    return filter.from ? `à partir du ${formatDate(filter.from)}` : `jusqu'au ${formatDate(filter.to ?? "")}`;
-  }
-  if (filter.op === "empty" || filter.op === "notEmpty") return OP_LABELS[filter.op].toLowerCase();
-  if (filter.op && filter.text) return `${OP_LABELS[filter.op].toLowerCase()} « ${filter.text} »`;
-  if (filter.text) return `contient « ${filter.text} »`;
-  if (filter.key === "batch") return (filter.values ?? []).map((v) => `n° ${v}`).join(", ");
-  if (filter.key.startsWith("status:")) return (filter.values ?? []).map((v) => PROGRESS_LABELS[v as ProgressStatus] ?? v).join(", ");
-  const values = (filter.values ?? []).map((v) => (v === "" ? "(Vides)" : (column?.formatValue?.(v) ?? v)));
-  const shown = values.slice(0, 2).join(", ");
-  return values.length > 2 ? `${shown} +${values.length - 2}` : shown;
-}
-
 /**
  * Active filters as removable chips.
  * The bar itself does not animate its height (that would re-layout the table on every frame):
@@ -42,8 +26,10 @@ export function FilterChips<T>({ filters, columns, search, onRemove, onClearSear
   if (count === 0) return null;
 
   return (
-    <div className="flex animate-fade-in flex-wrap items-center gap-2 border-t border-slate-100 bg-linear-to-r from-brand-50/60 to-transparent px-4 py-2.5">
-      <span className="mr-1 font-mono text-[10px] font-medium tracking-[0.2em] text-brand-600/80 uppercase">Filtres · {count}</span>
+    <div className="flex animate-fade-in flex-wrap items-center gap-2 border-t border-[#2F6BFF]/15 bg-[#2F6BFF]/[0.06] px-4 py-2.5">
+      <span className="mr-1 inline-flex h-6 items-center gap-1.5 rounded-lg bg-[#2F6BFF] px-2 text-xs font-bold text-white">
+        <ListFilter className="size-3.5" /> {count} filtre{count > 1 ? "s" : ""} actif{count > 1 ? "s" : ""}
+      </span>
       <AnimatePresence initial={false}>
         {search && <Chip key="__search" icon={<Search className="size-3" />} label="ID Externe" value={`contient « ${search} »`} onRemove={onClearSearch} />}
         {filters.map((f) => {
@@ -52,8 +38,8 @@ export function FilterChips<T>({ filters, columns, search, onRemove, onClearSear
             <Chip
               key={f.key}
               icon={<ListFilter className="size-3" />}
-              label={column?.label ?? (f.key === "batch" ? "Fichier" : f.key.startsWith("status:") ? `Avancement ${SECTION_LABELS[f.key.slice(7) as FieldSection] ?? ""}` : f.key)}
-              value={summary(f, column)}
+              label={filterLabel(f, column)}
+              value={filterValue(f, column)}
               onRemove={() => onRemove(f.key)}
             />
           );

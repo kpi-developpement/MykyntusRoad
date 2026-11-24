@@ -113,12 +113,16 @@ export function DayCalendar({ value, onSelect, initialMonth, size = "sm", stats,
               }
             >
               <span className={styles.num}>{d.getDate()}</span>
-              {total > 0 && <span className={styles.count}>{total}</span>}
-              {size === "lg" && s && total > 0 && (
-                <span className={styles.detail}>
-                  {s.late > 0 && `${s.late} retard`}
-                  {s.late === 0 && s.soon > 0 && `${s.soon} bientôt`}
-                  {s.late === 0 && s.soon === 0 && `${s.done}/${total} clôt.`}
+              {total > 0 && (
+                <span className={styles.count}>
+                  <i className={styles.countDot} />
+                  {size === "lg" && s
+                    ? s.late > 0
+                      ? `${s.late} retard${s.late > 1 ? "s" : ""}`
+                      : s.soon > 0
+                        ? `${s.soon} bientôt`
+                        : `${s.done}/${total}`
+                    : total}
                 </span>
               )}
               {total > 0 ? (

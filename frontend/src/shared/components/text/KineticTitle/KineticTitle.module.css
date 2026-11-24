@@ -1,0 +1,40 @@
+/* Letters rise into place one after the other, and ripple when the title is hovered. */
+.word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.char {
+  display: inline-block;
+  animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--d, 0s) + var(--i) * 18ms);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i) * 12ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) rotate(6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* hover ripple: each letter lifts a little, in sequence */
+.title:hover .char {
+  transform: translateY(-0.06em);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .char {
+    animation: none;
+    transition: none;
+  }
+
+  .title:hover .char {
+    transform: none;
+  }
+}

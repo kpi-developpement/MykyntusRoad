@@ -15,6 +15,7 @@ import { Surface } from "../../surface/Surface/Surface";
 import { DataGrid } from "../DataGrid/DataGrid";
 import type { GridColumn, GridGroup } from "../DataGrid/types";
 import { FilterChips } from "../FilterChips/FilterChips";
+import { FilterDock } from "../FilterDock/FilterDock";
 import { GridToolbar } from "../GridToolbar/GridToolbar";
 import { ProgressFilter } from "../ProgressFilter/ProgressFilter";
 
@@ -67,6 +68,14 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
       <GridToolbar grid={grid} columns={columns} groups={groups} prefs={prefs} onExport={exportExcel} exporting={exporting} />
       {progressSections.length > 0 && <ProgressFilter grid={grid} sections={progressSections} />}
       <FilterChips
+        filters={grid.criteria.filters}
+        columns={columns}
+        search={grid.criteria.search}
+        onRemove={(key) => grid.setFilter(key, null)}
+        onClearSearch={() => grid.setSearchInput("")}
+        onClearAll={grid.clearFilters}
+      />
+      <FilterDock
         filters={grid.criteria.filters}
         columns={columns}
         search={grid.criteria.search}
