@@ -73,7 +73,7 @@ export function assigneeColumn({ team = "SECURISATION", pilotes, editable, onAss
   };
 }
 
-const DELAYS: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE"];
+const DELAYS: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE", "CANCELLED"];
 
 /** Column "Délai": red after J+1 12:00, orange on J+1 morning, green when every column is filled. */
 export function delayColumn(): GridColumn<DossierRow> {

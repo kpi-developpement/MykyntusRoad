@@ -28,12 +28,14 @@ public class DashboardService {
     private EntityManager em;
 
     /**
-     * @param status  dominant state of the day: LATE, SOON, ON_TIME, DONE (everything closed) or EMPTY
+     * @param status  dominant state of the day: LATE, SOON, ON_TIME, DONE (everything closed), CANCELLED
+     *                (only cancelled dossiers) or EMPTY
+     * @param cancelled dossiers of cancelled imports (grey, out of every count)
      * @param unassignedSecu not closed and without sécurisation pilot (sécurisation file dossiers)
      * @param unassignedJ    not closed and without J agent
      */
     public record DayStat(LocalDate date, long total, long done, long late, long soon, long onTime, long horsSecu,
-                          long planification, long unassignedSecu, long unassignedJ, String status) {
+                          long planification, long unassignedSecu, long unassignedJ, long cancelled, String status) {
     }
 
     /** One line per date of the range that has dossiers. */
@@ -48,12 +50,14 @@ public class DashboardService {
         LocalDateTime now = LocalDateTime.now();
         List<Object[]> rows = em.createQuery("""
                 select d.dossierDate, count(d),
-                       sum(case when d.complete = true then 1 else 0 end),
-                       sum(case when d.horsSecu = true then 1 else 0 end),
-                       sum(case when d.routedPlanif = true then 1 else 0 end),
+                       sum(case when d.complete = true and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
+                       sum(case when d.horsSecu = true and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
+                       sum(case when d.routedPlanif = true and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
                        sum(case when (d.complete is null or d.complete = false) and d.assignedTo is null
-                                 and (d.horsSecu is null or d.horsSecu = false) then 1 else 0 end),
-                       sum(case when (d.complete is null or d.complete = false) and d.assignedJ is null then 1 else 0 end)
+                                 and (d.horsSecu is null or d.horsSecu = false) and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
+                       sum(case when (d.complete is null or d.complete = false) and d.assignedJ is null
+                                 and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
+                       sum(case when d.cancelled = true then 1 else 0 end)
                 from Dossier d where d.dossierDate between :from and :to
                 group by d.dossierDate""", Object[].class)
                 .setParameter("from", from)
@@ -64,7 +68,8 @@ public class DashboardService {
             LocalDate date = (LocalDate) r[0];
             long total = num(r[1]);
             long done = num(r[2]);
-            long open = total - done;
+            long cancelled = num(r[7]);
+            long open = total - done - cancelled;
             long late = 0;
             long soon = 0;
             long onTime = 0;
@@ -73,8 +78,9 @@ public class DashboardService {
                 case SOON -> soon = open;
                 default -> onTime = open;
             }
-            String status = total == 0 ? "EMPTY" : late > 0 ? "LATE" : soon > 0 ? "SOON" : onTime > 0 ? "ON_TIME" : "DONE";
-            map.put(date, new DayStat(date, total, done, late, soon, onTime, num(r[3]), num(r[4]), num(r[5]), num(r[6]), status));
+            String status = total == 0 ? "EMPTY" : late > 0 ? "LATE" : soon > 0 ? "SOON" : onTime > 0 ? "ON_TIME"
+                    : done > 0 ? "DONE" : "CANCELLED";
+            map.put(date, new DayStat(date, total, done, late, soon, onTime, num(r[3]), num(r[4]), num(r[5]), num(r[6]), cancelled, status));
         }
         return new ArrayList<>(map.values());
     }
@@ -97,7 +103,7 @@ public class DashboardService {
         }
         String who = "d." + team.property();
         String at = "d." + team.dateProperty();
-        Object[] r = em.createQuery("select sum(case when d.complete is null or d.complete = false then 1 else 0 end), "
+        Object[] r = em.createQuery("select sum(case when (d.complete is null or d.complete = false) and (d.cancelled is null or d.cancelled = false) then 1 else 0 end), "
                         + "sum(case when " + at + " > :since then 1 else 0 end), max(" + at + ") "
                         + "from Dossier d where " + who + " = :me", Object[].class)
                 .setParameter("me", user.username())

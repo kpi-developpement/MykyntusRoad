@@ -8,7 +8,7 @@ import { DELAY_LABELS, type Delay, type FacetResponse } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { DELAY_TONE } from "../../../utils/delayTone";
 
-const SHOWN: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE"];
+const SHOWN: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE", "CANCELLED"];
 
 /**
  * Delay counters of the current table: red = after J+1 12:00, orange = J+1 morning, green = closed.

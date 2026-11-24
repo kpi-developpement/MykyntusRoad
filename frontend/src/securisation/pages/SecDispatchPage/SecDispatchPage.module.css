@@ -1,0 +1,609 @@
+/*
+ * Dispatch: one readable flow (what → between whom → how), then the team, one card per pilot with
+ * written actions. Glass on the sky canvas, neumorphic controls.
+ */
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 22px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  background: linear-gradient(165deg, rgb(255 255 255 / 0.82), rgb(244 248 255 / 0.62));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 20px 40px -30px rgb(20 33 61 / 0.4);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+}
+
+.scopeLabel {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #14213d;
+}
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.flagBtn {
+  border: 0;
+  padding: 0;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+.flagBtn:hover {
+  opacity: 1;
+}
+
+.flagOn {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px #2f6bff;
+}
+
+.fileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 32px;
+  padding: 0 0.4rem 0 0.75rem;
+  border: 0;
+  border-radius: 11px;
+  background: #2f6bff;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fileChip svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------------------------------------------------------------- the flow */
+.flow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) auto minmax(0, 1.4fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.6rem;
+  margin-bottom: 1.6rem;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.1rem 1.15rem;
+  border-radius: 26px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  background: linear-gradient(165deg, rgb(255 255 255 / 0.86), rgb(244 248 255 / 0.66));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 30px 60px -40px rgb(20 33 61 / 0.45);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+
+.stepHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* the steps really are a sequence: numbered */
+.stepNum {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: #eef2f8;
+  color: #2f6bff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  box-shadow:
+    -3px -3px 7px #fff,
+    3px 4px 8px rgb(100 116 160 / 0.28);
+}
+
+.stepTitle {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #14213d;
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+}
+
+.arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.big {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: #2f6bff;
+  font-variant-numeric: tabular-nums;
+}
+
+.bigLabel {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.split {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.split span {
+  height: 100%;
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.splitLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.8rem;
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.splitLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.splitLegend i {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+.hint {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.linkBtn {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: #2f6bff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+/* pilots to choose: neumorphic keys that press in when chosen */
+.people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.55rem;
+}
+
+.person {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 16px;
+  background: #eef2f8;
+  box-shadow:
+    -4px -4px 9px #fff,
+    4px 5px 11px rgb(100 116 160 / 0.25);
+  color: #475569;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 150ms ease-out,
+    box-shadow 200ms ease-out,
+    color 150ms ease-out;
+}
+
+.person:hover {
+  transform: translateY(-1px);
+}
+
+.personOn {
+  color: #14213d;
+  box-shadow:
+    inset 3px 3px 7px rgb(100 116 160 / 0.28),
+    inset -3px -3px 7px #fff,
+    0 0 0 2px #2f6bff;
+}
+
+.personText {
+  min-width: 0;
+  flex: 1;
+}
+
+.personName {
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personLoad {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+/* how many the pilot will receive */
+.plus {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #2f6bff;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  box-shadow: 0 6px 14px -6px #2f6bff;
+}
+
+.options {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.option {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border: 0;
+  border-radius: 16px;
+  background: #eef2f8;
+  box-shadow:
+    -4px -4px 9px #fff,
+    4px 5px 11px rgb(100 116 160 / 0.22);
+  color: #475569;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 200ms ease-out;
+}
+
+.optionOn {
+  color: #14213d;
+  box-shadow:
+    inset 3px 3px 7px rgb(100 116 160 / 0.26),
+    inset -3px -3px 7px #fff,
+    0 0 0 2px #2f6bff;
+}
+
+.radio {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 999px;
+  border: 2px solid #94a3b8;
+}
+
+.optionOn .radio {
+  border-color: #2f6bff;
+}
+
+.radio i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #2f6bff;
+}
+
+.optionTitle {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.optionText {
+  margin-top: 0.1rem;
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.go {
+  margin-top: auto;
+}
+
+.goBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 52px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #2f6bff, #5b5bf6);
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 16px 30px -14px #2f6bff;
+  transition: transform 150ms ease-out;
+}
+
+.goBtn:active {
+  transform: scale(0.98);
+}
+
+.goBtn:disabled {
+  background: #cbd5e1;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.goBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.person:focus-visible,
+.option:focus-visible,
+.goBtn:focus-visible,
+.action:focus-visible,
+.flagBtn:focus-visible,
+.fileChip:focus-visible,
+.linkBtn:focus-visible {
+  outline: 2px solid #2f6bff;
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- the team */
+.teamHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.teamTitle {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #14213d;
+}
+
+.team {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.05rem;
+  border-radius: 24px;
+  background: #eef2f8;
+  box-shadow:
+    -7px -7px 16px rgb(255 255 255 / 0.95),
+    8px 10px 22px rgb(100 116 160 / 0.26);
+}
+
+.cardInactive {
+  opacity: 0.6;
+}
+
+.cardUnassigned {
+  background: linear-gradient(160deg, #eef3ff, #eef2f8);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.cardName {
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #14213d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardSub {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.unassignedIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: #2f6bff;
+  color: #fff;
+}
+
+.unassignedIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nums {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.num {
+  padding: 0.45rem 0.5rem;
+  border-radius: 14px;
+  background: #eef2f8;
+  box-shadow:
+    inset 2px 2px 5px rgb(100 116 160 / 0.2),
+    inset -2px -2px 5px #fff;
+  text-align: center;
+}
+
+.numValue {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #14213d;
+  font-variant-numeric: tabular-nums;
+}
+
+.numLabel {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe5ef;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #12b5a6, #2f6bff);
+  transform-origin: left;
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 11px;
+  background: #fff;
+  color: #14213d;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(20 33 61 / 0.08), inset 0 0 0 1px rgb(226 232 240 / 0.9);
+  transition:
+    transform 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.action:hover {
+  color: #2f6bff;
+}
+
+.action:active {
+  transform: scale(0.96);
+}
+
+.action:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.danger:hover {
+  color: #f0435a;
+}
+
+.clearAll {
+  border: 0;
+  background: none;
+  color: #f0435a;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.empty {
+  padding: 2rem 1rem;
+  border-radius: 24px;
+  text-align: center;
+  color: #64748b;
+  background: rgb(255 255 255 / 0.6);
+  border: 1px dashed #cbd5e1;
+}
+
+@media (max-width: 1279px) {
+  .flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arrow {
+    transform: rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .person,
+  .option,
+  .goBtn,
+  .action,
+  .flagBtn,
+  .split span,
+  .progress span {
+    transition: none;
+  }
+}

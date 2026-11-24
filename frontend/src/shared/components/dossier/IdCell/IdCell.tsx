@@ -64,7 +64,7 @@ export function IdCell({ row, onOpen }: IdCellProps) {
   }
 
   // orange: J+1 morning and not closed, red: after J+1 12:00
-  const late = row.delay === "LATE" || row.delay === "SOON" ? DELAY_TONE[row.delay] : null;
+  const late = row.delay === "LATE" || row.delay === "SOON" || row.delay === "CANCELLED" ? DELAY_TONE[row.delay] : null;
 
   return (
     <>

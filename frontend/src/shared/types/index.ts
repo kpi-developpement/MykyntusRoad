@@ -6,8 +6,8 @@ export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PIL
 export type FieldSection = "SECURISATION" | "J_MINUS_1" | "PLANIFICATION" | "J" | "J_PLUS_1";
 /** Teams the dossiers are dispatched to. */
 export type Team = "SECURISATION" | "PLANIFICATION" | "J";
-/** DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red). */
-export type Delay = "DONE" | "ON_TIME" | "SOON" | "LATE";
+/** DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red), CANCELLED (its import was cancelled, grey). */
+export type Delay = "DONE" | "ON_TIME" | "SOON" | "LATE" | "CANCELLED";
 export type FieldType = "SELECT" | "TEXT" | "DATE" | "USER";
 /** Main daily file, the global sécurisation file or one of the 3 sécurisation files. */
 export type DataSource = "MAIN" | "SEC_GLOBAL" | "SEC_1" | "SEC_2" | "SEC_3";
@@ -44,6 +44,7 @@ export const DELAY_LABELS: Record<Delay, string> = {
   SOON: "Bientôt en retard",
   ON_TIME: "Dans les délais",
   DONE: "Clôturé",
+  CANCELLED: "Annulé",
 };
 
 export const SECTION_LABELS: Record<FieldSection, string> = {
@@ -404,7 +405,7 @@ export interface DispatchResult {
 // ------------------------------------------------------------------ dashboard / files
 
 /** Dominant state of a day: red, orange, blue (on time), green (everything closed). */
-export type DayStatus = "LATE" | "SOON" | "ON_TIME" | "DONE" | "EMPTY";
+export type DayStatus = "LATE" | "SOON" | "ON_TIME" | "DONE" | "CANCELLED" | "EMPTY";
 
 export interface DayStat {
   date: string;
@@ -419,6 +420,8 @@ export interface DayStat {
   unassignedSecu: number;
   /** Not closed and without J agent. */
   unassignedJ: number;
+  /** Dossiers of cancelled imports (grey, out of every count). */
+  cancelled: number;
   status: DayStatus;
 }
 
@@ -445,6 +448,8 @@ export interface BatchSummary {
   onTime: number;
   /** Not closed and without pilot in the team of the file. */
   unassigned: number;
+  /** Set to "Annulé" because the file was cancelled. */
+  cancelled: number;
   firstDate: string | null;
   lastDate: string | null;
 }
@@ -452,8 +457,8 @@ export interface BatchSummary {
 export interface RollbackPreview {
   id: number;
   fileName: string;
-  /** Dossiers created by the file, removed. */
-  deleted: number;
+  /** Dossiers created by the file, kept but set to "Annulé". */
+  cancelled: number;
   /** Dossiers whose previous values come back. */
   restored: number;
   /** Left as is (a later file of the same kind wins). */

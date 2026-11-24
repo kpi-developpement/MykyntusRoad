@@ -74,8 +74,8 @@ export function FilesView() {
           cancelLabel: "Garder le fichier",
           description: (
             <span>
-              {p.deleted} dossier(s) créé(s) par ce fichier seront supprimés
-              {p.worked > 0 && <strong> (dont {p.worked} déjà travaillé(s))</strong>}, {p.restored} dossier(s) existant(s) retrouvent leurs
+              {p.cancelled} dossier(s) créé(s) par ce fichier passent en « Annulé » (grisés, plus jamais en retard ni dispatchés)
+              {p.worked > 0 && <strong> dont {p.worked} déjà travaillé(s)</strong>}, {p.restored} dossier(s) existant(s) retrouvent leurs
               valeurs d&apos;avant
               {p.kept > 0 && `, ${p.kept} restent tels quels (un fichier plus récent les a mis à jour)`}. Le fichier reste visible dans
               l&apos;historique, marqué « annulé ».
@@ -84,7 +84,7 @@ export function FilesView() {
         });
         if (!ok) return;
         const res = await dashboardService.rollback(b.id);
-        toast.success("Import annulé", `${res.deleted} supprimé(s) · ${res.restored} restauré(s)`);
+        toast.success("Import annulé", `${res.cancelled} dossier(s) annulé(s), ${res.restored} restauré(s)`);
         setToken((t) => t + 1);
       } catch (e) {
         toast.error("Annulation impossible", e instanceof Error ? e.message : undefined);
@@ -198,6 +198,7 @@ function FileCard({ batch: b, isSecAdmin, onCancel }: { batch: BatchSummary; isS
           {seg(b.onTime, "#3b82f6")}
           {seg(b.soon, "#f97316")}
           {seg(b.late, "#ef4444")}
+          {seg(b.cancelled, "repeating-linear-gradient(135deg,#94a3b8 0 3px,#cbd5e1 3px 6px)")}
         </div>
         <div className={styles.legend}>
           <span>
@@ -209,6 +210,11 @@ function FileCard({ batch: b, isSecAdmin, onCancel }: { batch: BatchSummary; isS
           <span>
             <i className={styles.dot} style={{ background: "#3b82f6" }} /> {b.onTime} à temps
           </span>
+          {b.cancelled > 0 && (
+            <span>
+              <i className={styles.dot} style={{ background: "#94a3b8" }} /> {b.cancelled} annulé(s)
+            </span>
+          )}
         </div>
       </div>
 

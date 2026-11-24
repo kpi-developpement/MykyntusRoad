@@ -175,6 +175,7 @@ public class ImportService {
                 values.keySet().retainAll(headers);
                 Diff diff = applyValues(dossier.getRawData(), source.getPrefix(), values);
                 flagService.applyAutomatic(dossier);
+                dossier.setCancelled(null);
                 dossier.setLastImport(batch);
                 toSave.add(dossier);
                 changes.add(new Change(dossier, isNew, diff.lines(), diff.modified()));

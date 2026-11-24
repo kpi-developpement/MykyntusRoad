@@ -67,17 +67,21 @@ class BatchRollbackIntegrationTest {
         assertThatThrownBy(() -> batchService.rollback(wrong.batchId(), secAdmin)).isInstanceOf(ApiException.class);
 
         BatchSummaryResponse.Preview preview = batchService.preview(wrong.batchId(), admin);
-        assertThat(preview.deleted()).isEqualTo(1);
+        assertThat(preview.cancelled()).isEqualTo(1);
         assertThat(preview.restored()).isEqualTo(1);
 
         batchService.rollback(wrong.batchId(), admin);
         assertThat(row("EPS-RB-0001").raw()).containsEntry("Type de travail", "ok");
-        assertThat(dossierService.search(new DossierSearchRequest(null, "EPS-RB-0003", List.of(), null, 0, 5)).rows().content()).isEmpty();
+        // created by the wrong file: kept but "Annulé", never late, out of the dispatch
+        assertThat(row("EPS-RB-0003").delay()).isEqualTo("CANCELLED");
+        assertThat(ids(new ColumnFilter("delay", List.of("LATE"), null))).doesNotContain("EPS-RB-0003");
+        assertThat(ids(new ColumnFilter("delay", List.of("CANCELLED"), null))).containsExactly("EPS-RB-0003");
+        assertThat(dashboardService.days(DAY, DAY).getFirst().cancelled()).isEqualTo(1);
         assertThat(batchService.list(admin, 50).stream().filter(b -> b.id().equals(wrong.batchId())).findFirst().orElseThrow().rolledBack()).isTrue();
         assertThatThrownBy(() -> batchService.rollback(wrong.batchId(), admin)).isInstanceOf(ApiException.class);
 
         // cancelling the first file: dossier 1 had no later file left -> removed with dossier 2
-        assertThat(batchService.preview(good.batchId(), admin).deleted()).isEqualTo(2);
+        assertThat(batchService.preview(good.batchId(), admin).cancelled()).isEqualTo(2);
 
         // day colours: DAY is long past -> the open dossiers are late
         DashboardService.DayStat day = dashboardService.days(DAY, DAY).getFirst();

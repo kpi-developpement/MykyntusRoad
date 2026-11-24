@@ -55,7 +55,9 @@ public class DossierProgressService {
         /** J+1 morning, not closed yet (orange). */
         SOON,
         /** After J+1 12:00, not closed (red). */
-        LATE
+        LATE,
+        /** Its import was cancelled (grey): no delay any more. */
+        CANCELLED
     }
 
     private final DossierRepository dossierRepository;
@@ -118,6 +120,9 @@ public class DossierProgressService {
     }
 
     public static Delay delay(Dossier d) {
+        if (d.isCancelled()) {
+            return Delay.CANCELLED;
+        }
         return delay(d.getDossierDate(), d.isComplete(), LocalDateTime.now());
     }
 

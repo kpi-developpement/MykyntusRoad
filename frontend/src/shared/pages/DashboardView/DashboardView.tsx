@@ -23,8 +23,8 @@ const AHEAD = 14;
 const RIBBON_BACK = 21;
 const RIBBON_AHEAD = 7;
 
-const DELAY_COLOR: Record<Delay, string> = { LATE: "#f0435a", SOON: "#ff8a3d", ON_TIME: "#2f6bff", DONE: "#12b5a6" };
-const DELAY_ORDER: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE"];
+const DELAY_COLOR: Record<Delay, string> = { LATE: "#f0435a", SOON: "#ff8a3d", ON_TIME: "#2f6bff", DONE: "#12b5a6", CANCELLED: "#94a3b8" };
+const DELAY_ORDER: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE", "CANCELLED"];
 
 const shiftIso = (iso: string, days: number) => {
   const [y, m, d] = iso.split("-").map(Number);

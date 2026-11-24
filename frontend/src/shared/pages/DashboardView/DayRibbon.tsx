@@ -57,6 +57,7 @@ export function DayRibbon({ dates, stats, today, selected, onSelect }: DayRibbon
                     <span className={styles.onTime} style={{ height: part(s.onTime) }} />
                     <span className={styles.soon} style={{ height: part(s.soon) }} />
                     <span className={styles.late} style={{ height: part(s.late) }} />
+                    <span className={styles.cancelled} style={{ height: part(s.cancelled ?? 0) }} />
                   </>
                 )}
               </span>
@@ -77,6 +78,9 @@ export function DayRibbon({ dates, stats, today, selected, onSelect }: DayRibbon
         </span>
         <span>
           <i style={{ background: "#12b5a6" }} /> Clôturés
+        </span>
+        <span>
+          <i style={{ background: "repeating-linear-gradient(135deg,#94a3b8 0 2px,#cbd5e1 2px 4px)" }} /> Import annulé
         </span>
       </div>
     </section>

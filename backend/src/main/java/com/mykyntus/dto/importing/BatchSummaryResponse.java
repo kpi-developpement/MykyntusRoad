@@ -15,23 +15,24 @@ import java.time.LocalDateTime;
  * @param soon        not closed, J+1 morning
  * @param onTime      not closed, before J+1
  * @param unassigned  not closed and without pilot in the team of the file (sécurisation / J)
+ * @param cancelled   dossiers set to "Annulé" (the file was cancelled)
  * @param firstDate   earliest dossier date of the file
  * @param lastDate    latest dossier date of the file
  */
 public record BatchSummaryResponse(Long id, String fileName, DataSource source, String importedBy, LocalDateTime importedAt,
                                    int totalRows, int createdRows, int updatedRows, int skippedRows,
                                    boolean rolledBack, LocalDateTime rolledBackAt, String rolledBackBy, boolean canRollback,
-                                   long dossiers, long done, long late, long soon, long onTime, long unassigned,
+                                   long dossiers, long done, long late, long soon, long onTime, long unassigned, long cancelled,
                                    LocalDate firstDate, LocalDate lastDate) {
 
     /**
      * What cancelling the file would do.
      *
-     * @param deleted   dossiers created by the file, removed completely
+     * @param cancelled dossiers created by the file, kept but set to "Annulé"
      * @param restored  dossiers whose previous values are put back
      * @param kept      dossiers left as they are (a later file of the same kind wins)
-     * @param worked    dossiers removed although a user already filled something on them
+     * @param worked    cancelled dossiers on which a user already filled something
      */
-    public record Preview(Long id, String fileName, long deleted, long restored, long kept, long worked) {
+    public record Preview(Long id, String fileName, long cancelled, long restored, long kept, long worked) {
     }
 }

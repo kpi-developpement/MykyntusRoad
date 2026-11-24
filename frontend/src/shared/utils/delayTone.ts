@@ -21,4 +21,9 @@ export const DELAY_TONE: Record<Delay, { id: string; chip: string; dot: string }
     dot: "bg-emerald-500",
   },
   ON_TIME: null,
+  CANCELLED: {
+    id: "bg-[repeating-linear-gradient(135deg,#f1f5f9_0_6px,#e2e8f0_6px_12px)] text-slate-500 line-through decoration-slate-400 ring-1 ring-slate-300 hover:text-slate-700",
+    chip: "bg-[repeating-linear-gradient(135deg,#f8fafc_0_6px,#eef2f7_6px_12px)] text-slate-500 ring-slate-300",
+    dot: "bg-slate-400",
+  },
 };

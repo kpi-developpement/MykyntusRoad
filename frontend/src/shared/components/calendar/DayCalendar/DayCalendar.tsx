@@ -121,7 +121,9 @@ export function DayCalendar({ value, onSelect, initialMonth, size = "sm", stats,
                       ? `${s.late} retard${s.late > 1 ? "s" : ""}`
                       : s.soon > 0
                         ? `${s.soon} bientôt`
-                        : `${s.done}/${total}`
+                        : s.status === "CANCELLED"
+                          ? "annulés"
+                          : `${s.done}/${total - (s.cancelled ?? 0)}`
                     : total}
                 </span>
               )}
@@ -131,6 +133,7 @@ export function DayCalendar({ value, onSelect, initialMonth, size = "sm", stats,
                   <span className={styles.segOnTime} style={{ width: pct(s!.onTime) }} />
                   <span className={styles.segSoon} style={{ width: pct(s!.soon) }} />
                   <span className={styles.segLate} style={{ width: pct(s!.late) }} />
+                  <span className={styles.segCancelled} style={{ width: pct(s!.cancelled ?? 0) }} />
                 </span>
               ) : (
                 <span />
@@ -151,6 +154,9 @@ export function DayCalendar({ value, onSelect, initialMonth, size = "sm", stats,
         </span>
         <span className={styles.legendItem}>
           <span className={styles.dot} style={{ background: "var(--done)" }} /> Tout clôturé
+        </span>
+        <span className={styles.legendItem}>
+          <span className={styles.dot} style={{ background: "#94a3b8" }} /> Import annulé
         </span>
       </div>
     </div>

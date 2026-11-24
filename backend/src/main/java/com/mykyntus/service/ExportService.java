@@ -108,6 +108,7 @@ public class ExportService {
                 case ON_TIME -> "Dans les délais";
                 case SOON -> "Bientôt en retard";
                 case LATE -> "En retard";
+                case CANCELLED -> "Annulé";
             };
             case ColumnKey.RouteKey ignored -> d.isRoutedPlanif() ? "Planification" : "Sécurisation";
             case ColumnKey.BatchKey ignored -> null;

@@ -91,6 +91,9 @@ public class Dossier {
     /** Every column that applies to the dossier is filled (closes the dossier, see DossierProgressService). */
     private Boolean complete;
 
+    /** Brought by an import that was cancelled: kept, shown as "Annulé", never late, never dispatched. */
+    private Boolean cancelled;
+
     public boolean isFlagsManual() {
         return Boolean.TRUE.equals(flagsManual);
     }
@@ -105,5 +108,9 @@ public class Dossier {
 
     public boolean isComplete() {
         return Boolean.TRUE.equals(complete);
+    }
+
+    public boolean isCancelled() {
+        return Boolean.TRUE.equals(cancelled);
     }
 }

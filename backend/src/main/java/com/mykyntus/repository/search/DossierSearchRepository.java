@@ -86,7 +86,7 @@ public class DossierSearchRepository {
             return statusFacets(request, keyValue, section);
         }
         if (key instanceof ColumnKey.DelayKey) {
-            return enumFacets(request, keyValue, List.of("LATE", "SOON", "ON_TIME", "DONE"), this::delayPredicate);
+            return enumFacets(request, keyValue, List.of("LATE", "SOON", "ON_TIME", "DONE", "CANCELLED"), this::delayPredicate);
         }
         if (key instanceof ColumnKey.BatchKey) {
             return batchFacets(request, keyValue);
@@ -518,10 +518,13 @@ public class DossierSearchRepository {
         LocalDate yesterday = today.minusDays(1);
         boolean morning = now.toLocalTime().isBefore(DossierProgressService.DEADLINE);
         Path<Boolean> complete = d.get("complete");
+        Path<Boolean> cancelled = d.get("cancelled");
         Path<LocalDate> date = d.get("dossierDate");
-        Predicate open = cb.or(cb.isNull(complete), cb.isFalse(complete));
+        Predicate alive = cb.or(cb.isNull(cancelled), cb.isFalse(cancelled));
+        Predicate open = cb.and(alive, cb.or(cb.isNull(complete), cb.isFalse(complete)));
         return switch (value == null ? "" : value.toUpperCase(Locale.ROOT)) {
-            case "DONE" -> cb.isTrue(complete);
+            case "CANCELLED" -> cb.isTrue(cancelled);
+            case "DONE" -> cb.and(alive, cb.isTrue(complete));
             case "ON_TIME" -> cb.and(open, cb.greaterThanOrEqualTo(date, today));
             case "SOON" -> morning ? cb.and(open, cb.equal(date, yesterday)) : cb.disjunction();
             case "LATE" -> cb.and(open, morning ? cb.lessThan(date, yesterday) : cb.lessThanOrEqualTo(date, yesterday));
@@ -732,6 +735,8 @@ public class DossierSearchRepository {
         if (team == Team.PLANIFICATION) {
             where.add(routePredicate(cb, d, "PLANIFICATION"));
         }
+        // dossiers of a cancelled import are never dispatched
+        where.add(cb.or(cb.isNull(d.get("cancelled")), cb.isFalse(d.get("cancelled"))));
 
         cq.multiselect(d.get("id"), d.get(team.property()), d.get("flags"),
                         cb.selectCase().when(treated, true).otherwise(false))

@@ -1,9 +1,9 @@
-import { CheckCircle2, Clock3, Hourglass, TriangleAlert } from "lucide-react";
+import { Ban, CheckCircle2, Clock3, Hourglass, TriangleAlert } from "lucide-react";
 import { DELAY_LABELS, type Delay } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { DELAY_TONE } from "../../../utils/delayTone";
 
-const ICON = { LATE: TriangleAlert, SOON: Hourglass, DONE: CheckCircle2, ON_TIME: Clock3 };
+const ICON = { LATE: TriangleAlert, SOON: Hourglass, DONE: CheckCircle2, ON_TIME: Clock3, CANCELLED: Ban };
 
 /** "En retard" (red), "Bientôt en retard" (orange), "Clôturé" (green) or "Dans les délais". */
 export function DelayBadge({ delay, className }: { delay: Delay; className?: string }) {

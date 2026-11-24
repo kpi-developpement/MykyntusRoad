@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import type { ColumnFilter } from "../types";
+import { assigneeKey, type ColumnFilter, type Team } from "../types";
 
 /**
  * Table criteria given in the address (links of the dashboard and of the files page):
- * ?date=yyyy-MM-dd ("" = every date), ?batch=<file id>, ?delay=LATE|SOON|ON_TIME|DONE, ?route=PLANIFICATION.
+ * ?date=yyyy-MM-dd ("" = every date), ?batch=<file id>, ?delay=LATE|SOON|ON_TIME|DONE|CANCELLED, ?route=PLANIFICATION,
+ * ?pilot=<username>&team=SECURISATION|PLANIFICATION|J.
  */
 export function useUrlCriteria(defaultDate: string) {
   const params = useSearchParams();
@@ -18,6 +19,9 @@ export function useUrlCriteria(defaultDate: string) {
     if (batch) filters.push({ key: "batch", values: batch.split(",") });
     const delay = p.get("delay");
     if (delay) filters.push({ key: "delay", values: delay.split(",") });
+    // ?pilot=<username>&team=J : the dossiers of one pilot (links of the dispatch page)
+    const pilot = p.get("pilot");
+    if (pilot) filters.push({ key: assigneeKey((p.get("team") as Team) || "SECURISATION"), values: [pilot] });
     const route = p.get("route");
     if (route) filters.push({ key: "route", values: [route] });
     // a file spans several dates: show them all unless a date is given
