@@ -2,6 +2,7 @@ import { CirclePlus, Eraser, FileInput, Flag, PencilLine, RefreshCw, UserRoundCh
 import type { EventType, TimelineEvent } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { formatDateTime, formatRelative } from "../../../utils/date";
+import { SECTION_THEME } from "../../../utils/sectionTheme";
 import { ValueChip } from "../../badge/ValueChip/ValueChip";
 
 const KIND: Record<EventType, { icon: LucideIcon; tone: string; title: string }> = {
@@ -17,9 +18,9 @@ const KIND: Record<EventType, { icon: LucideIcon; tone: string; title: string }>
 const isDateLike = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** History of a dossier, newest first: imports, values set / changed / cleared, by whom and when. */
-export function EventList({ events, limit }: { events: TimelineEvent[]; limit?: number }) {
+export function EventList({ events, limit, emptyLabel = "Aucun événement" }: { events: TimelineEvent[]; limit?: number; emptyLabel?: string }) {
   const list = [...events].reverse().slice(0, limit ?? events.length);
-  if (list.length === 0) return <p className="py-4 text-center text-xs text-slate-400">Aucun événement</p>;
+  if (list.length === 0) return <p className="py-4 text-center text-xs text-slate-400">{emptyLabel}</p>;
 
   return (
     <ol className="relative space-y-1">
@@ -40,7 +41,16 @@ export function EventList({ events, limit }: { events: TimelineEvent[]; limit?: 
                   {e.field ? (
                     <>
                       {e.field}
-                      {e.sectionLabel && <span className="ml-1.5 font-mono text-[10px] font-medium text-slate-400 uppercase">{e.sectionLabel}</span>}
+                      {e.sectionLabel && e.section && (
+                        <span
+                          className={cn(
+                            "ml-1.5 rounded-md px-1.5 py-px align-middle font-mono text-[9px] font-semibold tracking-wide uppercase ring-1",
+                            SECTION_THEME[e.section].chip,
+                          )}
+                        >
+                          {e.sectionLabel}
+                        </span>
+                      )}
                     </>
                   ) : (
                     kind.title

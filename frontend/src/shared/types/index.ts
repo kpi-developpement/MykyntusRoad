@@ -1,5 +1,13 @@
-export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PILOTE_J";
-export type FieldSection = "SECURISATION" | "J_MINUS_1" | "J" | "J_PLUS_1";
+export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PILOTE_PLANIFICATION" | "PILOTE_J";
+/**
+ * J_MINUS_1 only remains in the history written before J-1 was merged into Sécurisation.
+ * PLANIFICATION holds the J-1 columns of the dossiers that are not "Planifié".
+ */
+export type FieldSection = "SECURISATION" | "J_MINUS_1" | "PLANIFICATION" | "J" | "J_PLUS_1";
+/** Teams the dossiers are dispatched to. */
+export type Team = "SECURISATION" | "PLANIFICATION" | "J";
+/** DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red). */
+export type Delay = "DONE" | "ON_TIME" | "SOON" | "LATE";
 export type FieldType = "SELECT" | "TEXT" | "DATE" | "USER";
 /** Main daily file, the global sécurisation file or one of the 3 sécurisation files. */
 export type DataSource = "MAIN" | "SEC_GLOBAL" | "SEC_1" | "SEC_2" | "SEC_3";
@@ -7,23 +15,53 @@ export type DataSource = "MAIN" | "SEC_GLOBAL" | "SEC_1" | "SEC_2" | "SEC_3";
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrateur",
   ADMIN_SECURISATION: "Admin sécurisation",
-  PILOTE_SECURISATION: "Pilote sécurisation (J-1)",
-  PILOTE_J: "Pilote J / J+1",
+  PILOTE_SECURISATION: "Pilote sécurisation",
+  PILOTE_PLANIFICATION: "Agent planification",
+  PILOTE_J: "Agent J / J+1",
+};
+
+export const TEAM_LABELS: Record<Team, string> = {
+  SECURISATION: "Pilote sécurisation",
+  PLANIFICATION: "Agent planification",
+  J: "Agent J / J+1",
+};
+
+/** Team of a pilot role (null for the admins). */
+export function teamOf(role: Role | undefined): Team | null {
+  if (role === "PILOTE_SECURISATION") return "SECURISATION";
+  if (role === "PILOTE_PLANIFICATION") return "PLANIFICATION";
+  if (role === "PILOTE_J") return "J";
+  return null;
+}
+
+/** Column key of a team's assignment. */
+export function assigneeKey(team: Team): string {
+  return team === "SECURISATION" ? "assignee" : `assignee:${team}`;
+}
+
+export const DELAY_LABELS: Record<Delay, string> = {
+  LATE: "En retard",
+  SOON: "Bientôt en retard",
+  ON_TIME: "Dans les délais",
+  DONE: "Clôturé",
 };
 
 export const SECTION_LABELS: Record<FieldSection, string> = {
   SECURISATION: "Sécurisation",
   J_MINUS_1: "J-1",
+  PLANIFICATION: "Planification",
   J: "J",
   J_PLUS_1: "J+1 à 12h00",
 };
 
 /** Every section, in display order. */
-export const SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1", "J", "J_PLUS_1"];
+export const SECTIONS: FieldSection[] = ["SECURISATION", "PLANIFICATION", "J", "J_PLUS_1"];
 /** Sections of the main follow-up (sécurisation only shows its published columns there). */
-export const MAIN_SECTIONS: FieldSection[] = ["J_MINUS_1", "J", "J_PLUS_1"];
-/** Work of the sécurisation team. */
-export const SECURISATION_SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1"];
+export const MAIN_SECTIONS: FieldSection[] = ["PLANIFICATION", "J", "J_PLUS_1"];
+/** Work of the sécurisation team (with the J-1 columns of the "Planifié" dossiers). */
+export const SECURISATION_SECTIONS: FieldSection[] = ["SECURISATION"];
+/** Columns configured by the admin. */
+export const ADMIN_FIELD_SECTIONS: FieldSection[] = ["J", "J_PLUS_1"];
 
 export const SEC_SOURCES: DataSource[] = ["SEC_GLOBAL", "SEC_1", "SEC_2", "SEC_3"];
 export const SOURCE_LABELS: Record<DataSource, string> = {
@@ -66,6 +104,8 @@ export interface AppField {
   active: boolean;
   /** Also shown read only in the main table (ex: Etat final). */
   published: boolean;
+  /** J-1 column: worked by the planification team when the dossier is not "Planifié". */
+  planification: boolean;
   options: FieldOption[];
 }
 
@@ -92,6 +132,20 @@ export interface DossierRow {
   flagsManual: boolean;
   /** Sécurisation pilot the dossier is dispatched to (username). */
   assignedTo: string | null;
+  /** Planification agent (username). */
+  assignedPlanif: string | null;
+  /** J / J+1 agent (username). */
+  assignedJ: string | null;
+  /** "Cellule plani" is not "Planifié": the J-1 columns are with the planification team. */
+  planification: boolean;
+  /** Absent from the sécurisation files: sécurisation columns N/A. */
+  horsSecu: boolean;
+  delay: Delay;
+}
+
+/** Username a dossier is dispatched to in a team. */
+export function assigneeOf(row: DossierRow, team: Team): string | null {
+  return team === "SECURISATION" ? row.assignedTo : team === "PLANIFICATION" ? row.assignedPlanif : row.assignedJ;
 }
 
 export interface Page<T> {
@@ -139,6 +193,8 @@ export interface SortSpec {
 }
 
 export interface DossierCriteria {
+  /** The dossiers of this pilot come first ("mes dossiers"). */
+  pin?: { team: Team; username: string } | null;
   date: string;
   search: string;
   filters: ColumnFilter[];
@@ -218,12 +274,35 @@ export interface SecSource {
 export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED" | "FLAGS_CHANGED" | "ASSIGNED";
 export type StageStatus = "DONE" | "CURRENT" | "PENDING";
 
+export interface StageField {
+  id: number;
+  label: string;
+  type: FieldType;
+  value: string | null;
+  /** Must be filled for the dossier to be closed. */
+  required: boolean;
+  by: string | null;
+  at: string | null;
+}
+
 export interface TimelineStage {
   key: string;
   label: string;
   status: StageStatus;
   at: string | null;
   detail: string | null;
+  fields: StageField[];
+}
+
+export interface TimelineMail {
+  fieldId: number;
+  label: string;
+  section: FieldSection;
+  sectionLabel: string;
+  value: string | null;
+  objet: string | null;
+  by: string | null;
+  at: string | null;
 }
 
 export interface TimelineEvent {
@@ -249,6 +328,11 @@ export interface DossierTimeline {
   stages: TimelineStage[];
   edits: number;
   events: TimelineEvent[];
+  mails: TimelineMail[];
+  delay: Delay;
+  planification: boolean;
+  horsSecu: boolean;
+  assignees: { team: Team; label: string; name: string }[];
 }
 
 // ------------------------------------------------------------------ flags

@@ -1,10 +1,14 @@
-import { CloudUpload, Database, LayoutDashboard, SlidersHorizontal, Users } from "lucide-react";
+import { CloudUpload, Database, LayoutDashboard, Shuffle, SlidersHorizontal, Users, Workflow } from "lucide-react";
 import type { NavSection } from "@/shared/types/navigation";
 
 export const ADMIN_NAV: NavSection[] = [
   {
     title: "Pilotage",
-    items: [{ href: "/admin/suivi", label: "Suivi des dossiers", icon: LayoutDashboard, description: "Tableau J-1 / J / J+1" }],
+    items: [
+      { href: "/admin/suivi", label: "Suivi des dossiers", icon: LayoutDashboard, description: "Sécurisation / Planification / J / J+1" },
+      { href: "/admin/planification", label: "Planification", icon: Workflow, description: "Dossiers non planifiés par la sécurisation" },
+      { href: "/admin/dispatch", label: "Dispatch", icon: Shuffle, description: "Répartir entre les agents" },
+    ],
   },
   {
     title: "Données",

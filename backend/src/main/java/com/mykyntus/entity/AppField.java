@@ -49,6 +49,16 @@ public class AppField {
         return Boolean.TRUE.equals(published);
     }
 
+    /**
+     * J-1 column merged into Sécurisation: worked by the sécurisation team when "Cellule plani" is
+     * "Planifié" (or empty), by the planification team otherwise.
+     */
+    private Boolean planification;
+
+    public boolean isPlanification() {
+        return Boolean.TRUE.equals(planification);
+    }
+
     @Builder.Default
     @OneToMany(mappedBy = "field", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position ASC")

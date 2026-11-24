@@ -13,5 +13,11 @@ public record AppFieldRequest(
         Integer position,
         Boolean active,
         /** Also shown read only in the main table. */
-        Boolean published) {
+        Boolean published,
+        /** Sécurisation column worked by the planification team when the dossier is not "Planifié". */
+        Boolean planification) {
+
+    public AppFieldRequest(String label, FieldSection section, FieldType type, Integer position, Boolean active, Boolean published) {
+        this(label, section, type, position, active, published, null);
+    }
 }

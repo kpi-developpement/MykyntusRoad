@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PanelRightOpen } from "lucide-react";
-import type { DossierRow } from "../../../types";
+import { DELAY_LABELS, type DossierRow } from "../../../types";
+import { cn } from "../../../utils/cn";
+import { DELAY_TONE } from "../../../utils/delayTone";
 import { Popover } from "../../popover/Popover/Popover";
 import { RoadmapCard } from "../RoadmapCard/RoadmapCard";
 
@@ -61,6 +63,9 @@ export function IdCell({ row, onOpen }: IdCellProps) {
     onOpen?.(row);
   }
 
+  // orange: J+1 morning and not closed, red: after J+1 12:00
+  const late = row.delay === "LATE" || row.delay === "SOON" ? DELAY_TONE[row.delay] : null;
+
   return (
     <>
       <button
@@ -68,8 +73,11 @@ export function IdCell({ row, onOpen }: IdCellProps) {
         onPointerEnter={startHold}
         onPointerLeave={leave}
         onClick={open}
-        title="Cliquer : cycle de vie · Survoler 3 s : road map"
-        className="group/id inline-flex max-w-full items-center gap-2 rounded-lg px-1.5 py-1 font-mono text-[12.5px] font-semibold tracking-tight text-brand-700 transition-colors hover:bg-brand-50 hover:text-brand-900"
+        title={`${late ? DELAY_LABELS[row.delay] + " · " : ""}Cliquer : cycle de vie · Survoler 3 s : road map`}
+        className={cn(
+          "group/id inline-flex max-w-full items-center gap-2 rounded-lg px-1.5 py-1 font-mono text-[12.5px] font-semibold tracking-tight transition-colors",
+          late ? late.id : "text-brand-700 hover:bg-brand-50 hover:text-brand-900",
+        )}
       >
         <span className="truncate">{row.idExterne}</span>
         <span className="relative grid size-4 shrink-0 place-items-center">

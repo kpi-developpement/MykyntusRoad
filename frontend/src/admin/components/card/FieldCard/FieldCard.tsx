@@ -42,7 +42,7 @@ export function FieldCard({ field, index, onChanged, onError }: FieldCardProps) 
     }
   }
 
-  const updateField = (patch: Partial<{ label: string; type: FieldType; active: boolean; published: boolean }>) =>
+  const updateField = (patch: Partial<{ label: string; type: FieldType; active: boolean; published: boolean; planification: boolean }>) =>
     run(() =>
       fieldService.update(field.id, {
         label: patch.label ?? field.label,
@@ -51,6 +51,7 @@ export function FieldCard({ field, index, onChanged, onError }: FieldCardProps) 
         position: field.position,
         active: patch.active ?? field.active,
         published: patch.published ?? field.published,
+        planification: patch.planification ?? field.planification,
       }),
     );
 
@@ -128,6 +129,14 @@ export function FieldCard({ field, index, onChanged, onError }: FieldCardProps) 
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-cyan-50/60 px-3 py-2 ring-1 ring-cyan-100">
             <span className="text-xs font-medium text-slate-600">Visible dans le suivi (lecture seule)</span>
             <Switch1 size="sm" checked={field.published} disabled={busy} onChange={(published) => updateField({ published })} />
+          </div>
+        )}
+        {field.section === "SECURISATION" && field.code !== "j1_cellule_plani" && (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-violet-50/60 px-3 py-2 ring-1 ring-violet-100">
+            <span className="text-xs font-medium text-slate-600" title="Traitée par la planification quand la Cellule plani n'est pas « Planifié »">
+              Colonne J-1 (planification)
+            </span>
+            <Switch1 size="sm" checked={field.planification} disabled={busy} onChange={(planification) => updateField({ planification })} />
           </div>
         )}
 

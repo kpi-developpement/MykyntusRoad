@@ -1,16 +1,16 @@
 package com.mykyntus.service;
 
+import com.mykyntus.dto.dossier.DossierSearchRequest;
 import com.mykyntus.dto.sec.PiloteCreateRequest;
 import com.mykyntus.dto.sec.PiloteResponse;
 import com.mykyntus.dto.sec.PiloteUpdateRequest;
 import com.mykyntus.entity.AppUser;
-import com.mykyntus.entity.Role;
+import com.mykyntus.entity.Team;
 import com.mykyntus.exception.ApiException;
 import com.mykyntus.repository.AppUserRepository;
 import com.mykyntus.repository.DossierRepository;
+import com.mykyntus.repository.search.DossierSearchRepository;
 import com.mykyntus.util.TextUtils;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,23 +21,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** The sécurisation admin manages his own team: the PILOTE_SECURISATION accounts. */
+/**
+ * The pilots of a team. The sécurisation admin manages his own team (PILOTE_SECURISATION accounts);
+ * the planification and J agents are created by the admin in the users screen.
+ */
 @Service
 @RequiredArgsConstructor
 public class PiloteService {
 
     private final AppUserRepository userRepository;
     private final DossierRepository dossierRepository;
+    private final DossierSearchRepository searchRepository;
+    private final DossierProgressService progressService;
     private final PasswordEncoder passwordEncoder;
-
-    @PersistenceContext
-    private EntityManager em;
 
     @Transactional(readOnly = true)
     public List<PiloteResponse> list() {
-        Map<String, long[]> loads = loads();
-        return userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.PILOTE_SECURISATION)
+        return list(Team.SECURISATION);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PiloteResponse> list(Team team) {
+        Map<String, long[]> loads = loads(team);
+        return allPilotes(team).stream()
                 .sorted(Comparator.comparing((AppUser u) -> !u.isActive()).thenComparing(u -> displayName(u).toLowerCase()))
                 .map(u -> toResponse(u, loads.getOrDefault(u.getUsername(), new long[2])))
                 .toList();
@@ -56,7 +62,7 @@ public class PiloteService {
                 .username(username)
                 .password(passwordEncoder.encode(request.password()))
                 .fullName(TextUtils.trimToNull(request.fullName()))
-                .role(Role.PILOTE_SECURISATION)
+                .role(Team.SECURISATION.pilotRole())
                 .build());
         return toResponse(user, new long[2]);
     }
@@ -73,7 +79,7 @@ public class PiloteService {
             }
             user.setPassword(passwordEncoder.encode(password));
         }
-        return toResponse(user, loads().getOrDefault(user.getUsername(), new long[2]));
+        return toResponse(user, loads(Team.SECURISATION).getOrDefault(user.getUsername(), new long[2]));
     }
 
     /** Deletes the account; its dossiers go back to "not dispatched". */
@@ -84,19 +90,17 @@ public class PiloteService {
         userRepository.delete(user);
     }
 
-    /** Active pilots by username (dispatch validation). */
+    /** Active pilots of the team by username (dispatch validation). */
     @Transactional(readOnly = true)
-    public Map<String, AppUser> activePilotes() {
+    public Map<String, AppUser> activePilotes(Team team) {
         Map<String, AppUser> map = new HashMap<>();
-        userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.PILOTE_SECURISATION && u.isActive())
-                .forEach(u -> map.put(u.getUsername(), u));
+        allPilotes(team).stream().filter(AppUser::isActive).forEach(u -> map.put(u.getUsername(), u));
         return map;
     }
 
     @Transactional(readOnly = true)
-    public List<AppUser> allPilotes() {
-        return userRepository.findAll().stream().filter(u -> u.getRole() == Role.PILOTE_SECURISATION).toList();
+    public List<AppUser> allPilotes(Team team) {
+        return userRepository.findAll().stream().filter(u -> u.getRole() == team.pilotRole()).toList();
     }
 
     public static String displayName(AppUser u) {
@@ -105,22 +109,24 @@ public class PiloteService {
 
     private AppUser pilote(Long id) {
         AppUser user = userRepository.findById(id).orElseThrow(() -> ApiException.notFound("Pilote introuvable"));
-        if (user.getRole() != Role.PILOTE_SECURISATION) {
+        if (user.getRole() != Team.SECURISATION.pilotRole()) {
             throw ApiException.forbidden("Ce compte n'est pas un pilote sécurisation");
         }
         return user;
     }
 
-    /** username -> [assigned, treated (état final filled)] over every date. */
-    private Map<String, long[]> loads() {
+    /** username -> [assigned, treated] over every date. */
+    private Map<String, long[]> loads(Team team) {
         Map<String, long[]> map = new HashMap<>();
-        List<Object[]> rows = em.createQuery("""
-                select d.assignedTo, count(d),
-                       sum(case when exists (select 1 from DossierFieldValue v where v.dossier = d
-                                and v.field.code = 'sec_etat_final' and v.value is not null) then 1 else 0 end)
-                from Dossier d where d.assignedTo is not null group by d.assignedTo""", Object[].class).getResultList();
-        for (Object[] r : rows) {
-            map.put((String) r[0], new long[]{((Number) r[1]).longValue(), r[2] == null ? 0 : ((Number) r[2]).longValue()});
+        for (DossierSearchRepository.ScopeRow row : searchRepository.scope(DossierSearchRequest.empty(), team, progressService.treatedFields(team))) {
+            if (row.assignedTo() == null) {
+                continue;
+            }
+            long[] c = map.computeIfAbsent(row.assignedTo(), k -> new long[2]);
+            c[0]++;
+            if (row.treated()) {
+                c[1]++;
+            }
         }
         return map;
     }

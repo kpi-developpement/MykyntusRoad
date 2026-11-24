@@ -8,6 +8,8 @@ export interface FieldPayload {
   position?: number;
   active?: boolean;
   published?: boolean;
+  /** Sécurisation column handed to the planification team when the dossier is not "Planifié". */
+  planification?: boolean;
 }
 
 export interface OptionPayload {

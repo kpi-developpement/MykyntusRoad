@@ -6,7 +6,7 @@ import { AppShell } from "@/shared/components/layout/AppShell/AppShell";
 
 export default function PiloteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RequireRole roles={["PILOTE_SECURISATION", "PILOTE_J"]}>
+    <RequireRole roles={["PILOTE_SECURISATION", "PILOTE_PLANIFICATION", "PILOTE_J"]}>
       <AppShell nav={PILOTE_NAV}>{children}</AppShell>
     </RequireRole>
   );

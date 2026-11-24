@@ -27,7 +27,7 @@ public final class DtoMapper {
     public static AppFieldResponse toField(AppField f, boolean onlyActiveOptions) {
         return new AppFieldResponse(
                 f.getId(), f.getCode(), f.getLabel(), f.getSection(), f.getSection().getLabel(),
-                f.getType(), f.getPosition(), f.isActive(), f.isPublished(),
+                f.getType(), f.getPosition(), f.isActive(), f.isPublished(), f.isPlanification(),
                 f.getOptions().stream()
                         .filter(o -> !onlyActiveOptions || o.isActive())
                         .sorted(Comparator.comparingInt(FieldOption::getPosition).thenComparing(FieldOption::getId))

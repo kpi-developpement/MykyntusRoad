@@ -49,6 +49,8 @@ public class ImportService {
     private final ImportBatchRepository batchRepository;
     private final SourceColumnRepository sourceColumnRepository;
     private final FlagService flagService;
+    private final SecuCrossCheckService crossCheckService;
+    private final DossierProgressService progressService;
 
     /** Main daily file. @param forcedDate optional date applied to every dossier of the file */
     @Transactional
@@ -172,6 +174,9 @@ public class ImportService {
                 changes.add(new Change(dossier, isNew, diff.lines(), diff.modified()));
             }
             dossierRepository.saveAll(toSave);
+            // admin's file crossed with the sécurisation files (N/A when absent), then closed / routed state
+            crossCheckService.check(toSave, source);
+            progressService.refresh(toSave);
             eventRepository.saveAll(changes.stream()
                     .map(c -> importEvent(c, source, fileName, username))
                     .filter(Objects::nonNull)

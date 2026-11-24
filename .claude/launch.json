@@ -6,6 +6,12 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd frontend && set NEXT_PUBLIC_API_URL=http://localhost:8335&& npx next dev -p 3956"],
       "port": 3956
+    },
+    {
+      "name": "backend-preview",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd backend && set SERVER_PORT=8335&& set APP_CORS_ORIGINS=http://localhost:3956&& set DB_SCHEMA=mykyntus_preview&& set DB_URL=jdbc:postgresql://localhost:5432/mykyntus?currentSchema=mykyntus_preview&& set JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\\Temp&& call .\\mvnw.cmd -q -o spring-boot:run"],
+      "port": 8335
     }
   ]
 }

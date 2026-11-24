@@ -43,8 +43,8 @@ class FilterTypesIntegrationTest {
         importService.importSecurisation(0, file(), DAY, "admin.secu");
         DossierTableResponse table = dossierService.search(criteria());
         Long etat = field(table, "sec_etat_final");
-        Long dept = field(table, "sec_departement");
-        CurrentUser pilot = new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION);
+        Long dept = field(table, "j1_mail");
+        CurrentUser pilot = new CurrentUser("admin.secu", Role.ADMIN_SECURISATION);
 
         // A: done (état final), B: in progress (only a comment), C: untouched
         valueService.updateValue(id("EPS-0000001001"), etat, "Sécurisé", pilot);

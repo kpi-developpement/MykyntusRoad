@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, ClipboardCheck, FolderOpen, ShieldCheck, ShieldPlus, type LucideIcon } from "lucide-react";
+import { CalendarClock, ClipboardCheck, FolderOpen, ShieldCheck, ShieldPlus, Workflow, type LucideIcon } from "lucide-react";
 import { KpiCard } from "../../components/card/KpiCard/KpiCard";
 import { DossierDrawer } from "../../components/drawer/DossierDrawer/DossierDrawer";
+import { DelayStrip } from "../../components/dossier/DelayStrip/DelayStrip";
 import { FlagStrip } from "../../components/flag/FlagStrip/FlagStrip";
 import { PageHeader } from "../../components/layout/PageHeader/PageHeader";
 import { DossierGridPanel } from "../../components/table/DossierGridPanel/DossierGridPanel";
@@ -14,8 +15,19 @@ import { useLayout } from "../../context/LayoutContext";
 import { useDossierGrid, type DossierGrid } from "../../hooks/useDossierGrid";
 import { useFlags } from "../../hooks/useFlags";
 import { dossierService } from "../../services/dossierService";
-import { secService } from "../../services/secService";
-import { MAIN_SECTIONS, SECTION_LABELS, type ColumnFilter, type DataSource, type DossierRow, type FieldSection, type Pilote } from "../../types";
+import { useTeamPilotes } from "../../hooks/useTeamPilotes";
+import { teamService } from "../../services/teamService";
+import {
+  MAIN_SECTIONS,
+  SECTION_LABELS,
+  assigneeOf,
+  teamOf,
+  type ColumnFilter,
+  type DataSource,
+  type DossierRow,
+  type FieldSection,
+  type Team,
+} from "../../types";
 import { formatDateLong } from "../../utils/date";
 
 interface SuiviViewProps {
@@ -32,21 +44,20 @@ interface SuiviViewProps {
   rawSources?: DataSource[];
   /** Imported columns hidden until shown from the "Colonnes" menu. */
   rawHidden?: boolean;
-  /** "Pilote assigné" column (sécurisation). */
-  withAssignee?: boolean;
-  /** Pilots (names + reassignment), loaded only for the sécurisation admin. */
-  pilotes?: Pilote[] | null;
+  /** Assignment columns shown (one per team) and whether the connected admin changes them. */
+  teams?: { team: Team; editable: boolean }[];
   actions?: React.ReactNode;
   /** Header actions that need the table state (e.g. "Mes dossiers"). */
   renderActions?: (grid: DossierGrid) => React.ReactNode;
   emptyAction?: React.ReactNode;
 }
 
-const KPI: Record<FieldSection, { icon: LucideIcon; tone: "brand" | "sky" | "indigo" | "cyan" }> = {
-  SECURISATION: { icon: ShieldPlus, tone: "cyan" },
-  J_MINUS_1: { icon: ShieldCheck, tone: "brand" },
-  J: { icon: CalendarClock, tone: "sky" },
-  J_PLUS_1: { icon: ClipboardCheck, tone: "indigo" },
+const KPI: Record<FieldSection, { icon: LucideIcon; tone: "blue" | "violet" | "emerald" | "fuchsia" }> = {
+  SECURISATION: { icon: ShieldPlus, tone: "blue" },
+  J_MINUS_1: { icon: ShieldCheck, tone: "blue" },
+  PLANIFICATION: { icon: Workflow, tone: "violet" },
+  J: { icon: CalendarClock, tone: "emerald" },
+  J_PLUS_1: { icon: ClipboardCheck, tone: "fuchsia" },
 };
 
 const GRID_COLS: Record<number, string> = {
@@ -58,6 +69,7 @@ const GRID_COLS: Record<number, string> = {
 /** Dossier follow-up screen, shared by the admin and the pilots (sections and rights differ). */
 const MAIN_ONLY: DataSource[] = ["MAIN"];
 const NO_FILTERS: ColumnFilter[] = [];
+const NO_TEAMS: { team: Team; editable: boolean }[] = [];
 
 export function SuiviView({
   gridId,
@@ -70,8 +82,7 @@ export function SuiviView({
   sections = MAIN_SECTIONS,
   rawSources = MAIN_ONLY,
   rawHidden = true,
-  withAssignee = false,
-  pilotes = null,
+  teams = NO_TEAMS,
   actions,
   renderActions,
   emptyAction,
@@ -80,17 +91,23 @@ export function SuiviView({
   const toast = useToast();
   const { flags } = useFlags();
   const { pendingSearch, clearPendingSearch } = useLayout();
+  // a pilot sees his own dossiers first, the others greyed out and read only
+  const ownTeam = teamOf(user?.role);
+  const username = user?.username ?? "";
   const grid = useDossierGrid({
     initialDate: pendingSearch ? "" : initialDate,
     initialSearch: pendingSearch?.q ?? "",
     initialFilters: pendingSearch ? NO_FILTERS : initialFilters,
+    pin: ownTeam && username ? { team: ownTeam, username } : null,
   });
+  const teamPilotes = useTeamPilotes(teams.map((t) => t.team));
   const [details, setDetails] = useState<DossierRow | null>(null);
   const editable = useMemo(() => user?.editableSections ?? [], [user]);
   const { saveValue, applySearch, patchRow, refreshStats } = grid;
   const role = user?.role;
-  const flagsEditable = role !== undefined && role !== "PILOTE_J";
-  const assigneeEditable = role === "ADMIN_SECURISATION";
+  const flagsEditable = role === "ADMIN" || role === "ADMIN_SECURISATION" || role === "PILOTE_SECURISATION";
+  const isMine = useCallback((row: DossierRow) => !ownTeam || assigneeOf(row, ownTeam) === username, [ownTeam, username]);
+  const rowMuted = useMemo(() => (ownTeam ? (row: DossierRow) => !isMine(row) : undefined), [ownTeam, isMine]);
 
   // search requested from the command palette (Ctrl + K)
   useEffect(() => {
@@ -141,10 +158,10 @@ export function SuiviView({
   );
 
   const assign = useCallback(
-    async (row: DossierRow, pilote: string | null) => {
+    async (row: DossierRow, pilote: string | null, team: Team) => {
       try {
-        await secService.assign([row.id], pilote);
-        patchRow(row.id, { assignedTo: pilote });
+        await teamService.assign(team, [row.id], pilote);
+        patchRow(row.id, team === "SECURISATION" ? { assignedTo: pilote } : team === "PLANIFICATION" ? { assignedPlanif: pilote } : { assignedJ: pilote });
         refreshStats();
       } catch (e) {
         toast.error("Attribution impossible", e instanceof Error ? e.message : undefined);
@@ -159,8 +176,8 @@ export function SuiviView({
     [flagsEditable, flagCodes, applyFlags, resetFlags],
   );
   const assigneeOptions = useMemo(
-    () => (withAssignee ? { pilotes, editable: assigneeEditable, onAssign: assign } : null),
-    [withAssignee, pilotes, assigneeEditable, assign],
+    () => teams.map((t) => ({ team: t.team, pilotes: teamPilotes[t.team] ?? null, editable: t.editable, onAssign: assign })),
+    [teams, teamPilotes, assign],
   );
 
   const columns = useMemo(
@@ -174,13 +191,16 @@ export function SuiviView({
         onSave: save,
         onOpen: setDetails,
         flags: flagOptions,
-        assignee: assigneeOptions,
+        assignees: assigneeOptions,
+        canEditRow: ownTeam ? isMine : undefined,
       }),
-    [grid.data, sections, editable, rawSources, rawHidden, save, flagOptions, assigneeOptions],
+    [grid.data, sections, editable, rawSources, rawHidden, save, flagOptions, assigneeOptions, ownTeam, isMine],
   );
   const groups = useMemo(() => buildSuiviGroups(sections, editable, grid.stats, rawSources), [sections, editable, grid.stats, rawSources]);
 
   const total = grid.stats?.total ?? 0;
+  // the planification section has no column of its own: no counter
+  const kpiSections = sections.filter((s) => s !== "PLANIFICATION");
   const date = grid.criteria.date;
 
   return (
@@ -200,7 +220,7 @@ export function SuiviView({
         }
       />
 
-      <div className={`mb-5 grid gap-3 sm:gap-4 ${GRID_COLS[sections.length + 1] ?? GRID_COLS[4]}`}>
+      <div className={`mb-5 grid gap-3 sm:gap-4 ${GRID_COLS[kpiSections.length + 1] ?? GRID_COLS[4]}`}>
         <KpiCard
           label="Dossiers"
           value={total}
@@ -209,7 +229,7 @@ export function SuiviView({
           hint={date ? `Pour le ${formatDateLong(date)}` : "Toutes les dates"}
           index={0}
         />
-        {sections.map((section, i) => (
+        {kpiSections.map((section, i) => (
           <KpiCard
             key={section}
             label={`${SECTION_LABELS[section]} traités`}
@@ -223,9 +243,18 @@ export function SuiviView({
         ))}
       </div>
 
+      <DelayStrip grid={grid} />
       <FlagStrip grid={grid} />
 
-      <DossierGridPanel gridId={gridId} grid={grid} columns={columns} groups={groups} emptyAction={emptyAction} progressSections={sections} />
+      <DossierGridPanel
+        gridId={gridId}
+        grid={grid}
+        columns={columns}
+        groups={groups}
+        emptyAction={emptyAction}
+        progressSections={kpiSections}
+        rowMuted={rowMuted}
+      />
 
       <DossierDrawer
         row={details}

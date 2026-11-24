@@ -6,7 +6,7 @@ import { dossierService } from "../../../services/dossierService";
 import { useToast } from "../../toast/ToastProvider/ToastProvider";
 import type { DossierGrid } from "../../../hooks/useDossierGrid";
 import { useGridPreferences } from "../../../hooks/useGridPreferences";
-import { MAIN_SECTIONS, type DossierRow, type FieldSection } from "../../../types";
+import type { DossierRow, FieldSection } from "../../../types";
 import { Alert1 } from "../../alert/Alert1/Alert1";
 import { Button1 } from "../../button/Button1/Button1";
 import { EmptyState } from "../../feedback/EmptyState/EmptyState";
@@ -17,6 +17,9 @@ import type { GridColumn, GridGroup } from "../DataGrid/types";
 import { FilterChips } from "../FilterChips/FilterChips";
 import { GridToolbar } from "../GridToolbar/GridToolbar";
 import { ProgressFilter } from "../ProgressFilter/ProgressFilter";
+
+/** Default "Avancement" sections (the planification section has no column of its own). */
+const PROGRESS_SECTIONS: FieldSection[] = ["J", "J_PLUS_1"];
 
 interface DossierGridPanelProps {
   /** Key used to remember density / visible columns. */
@@ -29,10 +32,12 @@ interface DossierGridPanelProps {
   maxHeight?: string;
   /** Sections offered in the "Avancement" quick filter (non touchés / en cours / traités). */
   progressSections?: FieldSection[];
+  /** Rows shown greyed out (read only). */
+  rowMuted?: (row: DossierRow) => boolean;
 }
 
 /** Card with toolbar, active filter chips, data grid and pagination. */
-export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, maxHeight, progressSections = MAIN_SECTIONS }: DossierGridPanelProps) {
+export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, maxHeight, progressSections = PROGRESS_SECTIONS, rowMuted }: DossierGridPanelProps) {
   const prefs = useGridPreferences(gridId);
   const visible = columns.filter((c) => prefs.isVisible(c));
   const rows = grid.data?.rows;
@@ -92,6 +97,7 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
           onFilterChange={grid.setFilter}
           loadFacets={grid.loadFacets}
           maxHeight={maxHeight}
+          rowMuted={rowMuted}
           empty={
             filtered ? (
               <EmptyState

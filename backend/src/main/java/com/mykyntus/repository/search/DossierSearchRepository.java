@@ -8,6 +8,8 @@ import com.mykyntus.entity.AppField;
 import com.mykyntus.entity.Dossier;
 import com.mykyntus.entity.DossierFieldValue;
 import com.mykyntus.entity.FieldSection;
+import com.mykyntus.entity.Team;
+import com.mykyntus.service.DossierProgressService;
 import com.mykyntus.util.TextUtils;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.function.Function;
@@ -48,7 +51,7 @@ public class DossierSearchRepository {
         CriteriaQuery<Dossier> cq = cb.createQuery(Dossier.class);
         Root<Dossier> d = cq.from(Dossier.class);
         cq.select(d).where(predicates(cb, cq, d, request, null));
-        cq.orderBy(orders(cb, d, request.sort()));
+        cq.orderBy(orders(cb, d, request));
 
         List<Dossier> content = em.createQuery(cq)
                 .setFirstResult(page * size)
@@ -81,6 +84,12 @@ public class DossierSearchRepository {
         }
         if (key instanceof ColumnKey.StatusKey(FieldSection section)) {
             return statusFacets(request, keyValue, section);
+        }
+        if (key instanceof ColumnKey.DelayKey) {
+            return enumFacets(request, keyValue, List.of("LATE", "SOON", "ON_TIME", "DONE"), this::delayPredicate);
+        }
+        if (key instanceof ColumnKey.RouteKey) {
+            return enumFacets(request, keyValue, List.of("PLANIFICATION", "SECURISATION"), this::routePredicate);
         }
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> cq = cb.createTupleQuery();
@@ -121,10 +130,10 @@ public class DossierSearchRepository {
                 order.add(cb.desc(count));
                 order.add(cb.asc(r.value()));
             }
-            case ColumnKey.AssigneeKey ignored -> {
+            case ColumnKey.AssigneeKey(Team team) -> {
                 Root<Dossier> d = cq.from(Dossier.class);
                 where.addAll(Arrays.asList(predicates(cb, cq, d, request, keyValue)));
-                Expression<String> assignee = d.get("assignedTo");
+                Expression<String> assignee = d.get(team.property());
                 where.add(cb.isNotNull(assignee));
                 if (text != null) {
                     where.add(cb.like(cb.lower(assignee), likePattern(text), LIKE_ESCAPE));
@@ -136,6 +145,8 @@ public class DossierSearchRepository {
             }
             case ColumnKey.FlagsKey ignored -> throw new IllegalStateException("handled by flagFacets");
             case ColumnKey.StatusKey ignored -> throw new IllegalStateException("handled by statusFacets");
+            case ColumnKey.DelayKey ignored -> throw new IllegalStateException("handled by enumFacets");
+            case ColumnKey.RouteKey ignored -> throw new IllegalStateException("handled by enumFacets");
             case ColumnKey.FieldKey(Long fieldId) -> {
                 Root<DossierFieldValue> v = cq.from(DossierFieldValue.class);
                 Join<DossierFieldValue, Dossier> d = v.join("dossier");
@@ -177,7 +188,7 @@ public class DossierSearchRepository {
             case ColumnKey.FieldKey(Long fieldId) ->
                     where.add(cb.not(d.get("id").in(fieldIds(cb, cq, fieldId, cb::isNotNull))));
             case ColumnKey.FlagsKey ignored -> where.add(noFlags(cb, d));
-            case ColumnKey.AssigneeKey ignored -> where.add(cb.isNull(d.get("assignedTo")));
+            case ColumnKey.AssigneeKey(Team team) -> where.add(cb.isNull(d.get(team.property())));
             default -> {
                 return 0;
             }
@@ -251,7 +262,8 @@ public class DossierSearchRepository {
         }
         boolean hasCondition = op.needsText() ? text != null
                 : op != FilterOp.BETWEEN || TextUtils.trimToNull(filter.from()) != null || TextUtils.trimToNull(filter.to()) != null;
-        if (hasCondition && !(key instanceof ColumnKey.StatusKey)) {
+        boolean enumOnly = key instanceof ColumnKey.StatusKey || key instanceof ColumnKey.DelayKey || key instanceof ColumnKey.RouteKey;
+        if (hasCondition && !enumOnly) {
             Predicate p = conditionPredicate(cb, query, d, key, op, text, parseDate(filter.from()), parseDate(filter.to()));
             if (p != null) {
                 parts.add(p);
@@ -287,16 +299,18 @@ public class DossierSearchRepository {
                 }
                 yield cb.or(or.toArray(Predicate[]::new));
             }
-            case ColumnKey.AssigneeKey ignored -> {
+            case ColumnKey.AssigneeKey(Team team) -> {
                 List<Predicate> or = new ArrayList<>();
                 if (!values.isEmpty()) {
-                    or.add(d.get("assignedTo").in(values));
+                    or.add(d.get(team.property()).in(values));
                 }
                 if (includeEmpty) {
-                    or.add(cb.isNull(d.get("assignedTo")));
+                    or.add(cb.isNull(d.get(team.property())));
                 }
                 yield cb.or(or.toArray(Predicate[]::new));
             }
+            case ColumnKey.DelayKey ignored -> cb.or(values.stream().map(v -> delayPredicate(cb, d, v)).toArray(Predicate[]::new));
+            case ColumnKey.RouteKey ignored -> cb.or(values.stream().map(v -> routePredicate(cb, d, v)).toArray(Predicate[]::new));
             case ColumnKey.RawKey(String column) -> {
                 List<Predicate> or = new ArrayList<>();
                 if (!values.isEmpty()) {
@@ -343,8 +357,10 @@ public class DossierSearchRepository {
             }
             case ColumnKey.IdKey ignored -> direct(cb, d.get("idExterne"), positive, text, from, to, false);
             case ColumnKey.FlagsKey ignored -> direct(cb, d.get("flags"), positive, text, from, to, false);
-            case ColumnKey.AssigneeKey ignored -> direct(cb, d.get("assignedTo"), positive, text, from, to, false);
+            case ColumnKey.AssigneeKey(Team team) -> direct(cb, d.get(team.property()), positive, text, from, to, false);
             case ColumnKey.StatusKey ignored -> null;
+            case ColumnKey.DelayKey ignored -> null;
+            case ColumnKey.RouteKey ignored -> null;
             case ColumnKey.RawKey(String column) ->
                     id.in(rawIds(cb, query, column, r -> textCondition(cb, r.value(), positive, text, from, to, true)));
             case ColumnKey.FieldKey(Long fieldId) ->
@@ -360,7 +376,7 @@ public class DossierSearchRepository {
         return switch (key) {
             case ColumnKey.IdKey ignored -> cb.not(p);
             case ColumnKey.FlagsKey ignored -> cb.or(noFlags(cb, d), cb.not(p));
-            case ColumnKey.AssigneeKey ignored -> cb.or(cb.isNull(d.get("assignedTo")), cb.not(p));
+            case ColumnKey.AssigneeKey(Team team) -> cb.or(cb.isNull(d.get(team.property())), cb.not(p));
             default -> cb.not(p);
         };
     }
@@ -433,7 +449,11 @@ public class DossierSearchRepository {
 
     /** Dossiers whose required fields of the section are all filled (see {@link #requiredFields}). */
     private Subquery<Long> doneIds(CriteriaBuilder cb, CommonAbstractCriteria query, FieldSection section) {
-        List<Long> required = requiredFields(section);
+        return allFilledIds(cb, query, requiredFields(section));
+    }
+
+    /** Dossiers whose given fields are all filled. */
+    private Subquery<Long> allFilledIds(CriteriaBuilder cb, CommonAbstractCriteria query, List<Long> required) {
         Subquery<Long> sq = query.subquery(Long.class);
         Root<DossierFieldValue> v = sq.from(DossierFieldValue.class);
         if (required.isEmpty()) {
@@ -468,6 +488,56 @@ public class DossierSearchRepository {
     public List<Long> activeFields(FieldSection section) {
         return em.createQuery("select f.id from AppField f where f.active = true and f.section = :s", Long.class)
                 .setParameter("s", section).getResultList();
+    }
+
+    // ------------------------------------------------------------------ delay / route
+
+    /** DONE (closed), ON_TIME (before J+1), SOON (J+1 before 12:00), LATE (after J+1 12:00). */
+    private Predicate delayPredicate(CriteriaBuilder cb, From<?, Dossier> d, String value) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        LocalDate yesterday = today.minusDays(1);
+        boolean morning = now.toLocalTime().isBefore(DossierProgressService.DEADLINE);
+        Path<Boolean> complete = d.get("complete");
+        Path<LocalDate> date = d.get("dossierDate");
+        Predicate open = cb.or(cb.isNull(complete), cb.isFalse(complete));
+        return switch (value == null ? "" : value.toUpperCase(Locale.ROOT)) {
+            case "DONE" -> cb.isTrue(complete);
+            case "ON_TIME" -> cb.and(open, cb.greaterThanOrEqualTo(date, today));
+            case "SOON" -> morning ? cb.and(open, cb.equal(date, yesterday)) : cb.disjunction();
+            case "LATE" -> cb.and(open, morning ? cb.lessThan(date, yesterday) : cb.lessThanOrEqualTo(date, yesterday));
+            default -> throw com.mykyntus.exception.ApiException.badRequest("Délai inconnu : " + value);
+        };
+    }
+
+    /** PLANIFICATION: "Cellule plani" filled with something else than "Planifié". */
+    private Predicate routePredicate(CriteriaBuilder cb, From<?, Dossier> d, String value) {
+        Path<Boolean> routed = d.get("routedPlanif");
+        return switch (value == null ? "" : value.toUpperCase(Locale.ROOT)) {
+            case "PLANIFICATION" -> cb.isTrue(routed);
+            case "SECURISATION" -> cb.or(cb.isNull(routed), cb.isFalse(routed));
+            default -> throw com.mykyntus.exception.ApiException.badRequest("Équipe inconnue : " + value);
+        };
+    }
+
+    @FunctionalInterface
+    private interface ValuePredicate {
+        Predicate build(CriteriaBuilder cb, From<?, Dossier> d, String value);
+    }
+
+    /** Counts of a fixed list of values (delay, route). */
+    private FacetResult enumFacets(DossierSearchRequest request, String keyValue, List<String> keys, ValuePredicate predicate) {
+        List<FacetValue> values = new ArrayList<>();
+        for (String v : keys) {
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+            Root<Dossier> d = cq.from(Dossier.class);
+            List<Predicate> where = new ArrayList<>(Arrays.asList(predicates(cb, cq, d, request, keyValue)));
+            where.add(predicate.build(cb, d, v));
+            cq.select(cb.count(d)).where(where.toArray(Predicate[]::new));
+            values.add(new FacetValue(v, em.createQuery(cq).getSingleResult()));
+        }
+        return new FacetResult(values, 0, false);
     }
 
     private FacetResult statusFacets(DossierSearchRequest request, String keyValue, FieldSection section) {
@@ -521,15 +591,24 @@ public class DossierSearchRepository {
 
     // ------------------------------------------------------------------ sorting
 
-    private List<Order> orders(CriteriaBuilder cb, Root<Dossier> d, SortSpec sort) {
+    private List<Order> orders(CriteriaBuilder cb, Root<Dossier> d, DossierSearchRequest request) {
+        SortSpec sort = request.sort();
         List<Order> orders = new ArrayList<>();
+        DossierSearchRequest.Pin pin = request.pin();
+        if (pin != null && pin.username() != null && !pin.username().isBlank()) {
+            // dossiers of the current pilot first ("mes dossiers"), then the others
+            Team team = pin.team() == null ? Team.SECURISATION : Team.parse(pin.team());
+            orders.add(cb.asc(cb.<Integer>selectCase().when(cb.equal(d.get(team.property()), pin.username()), 0).otherwise(1)));
+        }
         if (sort != null && sort.key() != null && !sort.key().isBlank()) {
             Expression<?> expression = switch (ColumnKey.parse(sort.key())) {
                 case ColumnKey.DateKey ignored -> d.get("dossierDate");
                 case ColumnKey.IdKey ignored -> d.get("idExterne");
                 case ColumnKey.FlagsKey ignored -> d.get("flags");
-                case ColumnKey.AssigneeKey ignored -> d.get("assignedTo");
+                case ColumnKey.AssigneeKey(Team team) -> d.get(team.property());
                 case ColumnKey.StatusKey ignored -> throw com.mykyntus.exception.ApiException.badRequest("Tri impossible sur l'avancement");
+                case ColumnKey.DelayKey ignored -> d.get("dossierDate");
+                case ColumnKey.RouteKey ignored -> d.get("routedPlanif");
                 case ColumnKey.RawKey(String column) -> {
                     MapJoin<Dossier, String, String> r = d.joinMap("rawData", JoinType.LEFT);
                     r.on(cb.equal(r.key(), column));
@@ -594,26 +673,32 @@ public class DossierSearchRepository {
     }
 
     /**
-     * Every dossier matching the criteria (no paging), with what the dispatch needs.
+     * Every dossier of a team's work matching the criteria (no paging), with what the dispatch needs.
+     * The planification team only gets the dossiers whose J-1 columns are routed to it.
      *
-     * @param treatedFieldId field whose value marks a dossier as treated (null = any sécurisation value)
+     * @param treatedFields fields that must all be filled for a dossier to be treated (null = dossier closed)
      */
-    public List<ScopeRow> scope(DossierSearchRequest request, Long treatedFieldId) {
+    public List<ScopeRow> scope(DossierSearchRequest request, Team team, List<Long> treatedFields) {
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> cq = cb.createTupleQuery();
         Root<Dossier> d = cq.from(Dossier.class);
 
-        Subquery<Long> treated = cq.subquery(Long.class);
-        Root<DossierFieldValue> v = treated.from(DossierFieldValue.class);
-        Predicate filled = cb.and(cb.isNotNull(v.get("value")), cb.notEqual(v.get("value"), ""));
-        Predicate field = treatedFieldId != null
-                ? cb.equal(v.get("field").get("id"), treatedFieldId)
-                : cb.equal(v.get("field").get("section"), FieldSection.SECURISATION);
-        treated.select(v.get("dossier").get("id")).where(field, filled);
+        Predicate treated;
+        if (treatedFields == null) {
+            treated = cb.isTrue(d.get("complete"));
+        } else if (treatedFields.isEmpty()) {
+            treated = cb.disjunction();
+        } else {
+            treated = d.get("id").in(allFilledIds(cb, cq, treatedFields));
+        }
+        List<Predicate> where = new ArrayList<>(Arrays.asList(predicates(cb, cq, d, request, null)));
+        if (team == Team.PLANIFICATION) {
+            where.add(routePredicate(cb, d, "PLANIFICATION"));
+        }
 
-        cq.multiselect(d.get("id"), d.get("assignedTo"), d.get("flags"),
-                        cb.selectCase().when(d.get("id").in(treated), true).otherwise(false))
-                .where(predicates(cb, cq, d, request, null))
+        cq.multiselect(d.get("id"), d.get(team.property()), d.get("flags"),
+                        cb.selectCase().when(treated, true).otherwise(false))
+                .where(where.toArray(Predicate[]::new))
                 .orderBy(cb.asc(d.get("dossierDate")), cb.asc(d.get("idExterne")));
         return em.createQuery(cq).getResultList().stream()
                 .map(t -> new ScopeRow(t.get(0, Long.class), t.get(1, String.class), t.get(2, String.class),
@@ -627,7 +712,7 @@ public class DossierSearchRepository {
         CriteriaQuery<Long> cq = cb.createQuery(Long.class);
         Root<Dossier> d = cq.from(Dossier.class);
         cq.select(d.get("id")).where(predicates(cb, cq, d, request, null));
-        cq.orderBy(orders(cb, d, request.sort()));
+        cq.orderBy(orders(cb, d, request));
         return em.createQuery(cq).setMaxResults(max).getResultList();
     }
 

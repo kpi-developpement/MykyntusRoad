@@ -1,5 +1,7 @@
 package com.mykyntus.controller;
 
+import com.mykyntus.entity.Team;
+
 import com.mykyntus.dto.dossier.DossierSearchRequest;
 import com.mykyntus.dto.sec.*;
 import com.mykyntus.service.DispatchService;
@@ -51,26 +53,26 @@ public class SecTeamController {
     /** Distribution of the dossiers matching the criteria. */
     @PostMapping("/dispatch/summary")
     public DispatchSummary summary(@RequestBody DossierSearchRequest criteria) {
-        return dispatchService.summary(criteria);
+        return dispatchService.summary(Team.SECURISATION, criteria);
     }
 
     @PostMapping("/dispatch")
     public DispatchResult dispatch(@RequestBody DispatchRequest request, @AuthenticationPrincipal Jwt jwt) {
-        return dispatchService.dispatch(request, jwt.getSubject());
+        return dispatchService.dispatch(Team.SECURISATION, request, jwt.getSubject());
     }
 
     @PostMapping("/dispatch/assign")
     public DispatchResult assign(@RequestBody AssignRequest request, @AuthenticationPrincipal Jwt jwt) {
-        return dispatchService.assign(request, jwt.getSubject());
+        return dispatchService.assign(Team.SECURISATION, request, jwt.getSubject());
     }
 
     @PostMapping("/dispatch/transfer")
     public DispatchResult transfer(@RequestBody TransferRequest request, @AuthenticationPrincipal Jwt jwt) {
-        return dispatchService.transfer(request, jwt.getSubject());
+        return dispatchService.transfer(Team.SECURISATION, request, jwt.getSubject());
     }
 
     @PostMapping("/dispatch/unassign")
     public DispatchResult unassign(@RequestBody UnassignRequest request, @AuthenticationPrincipal Jwt jwt) {
-        return dispatchService.unassign(request, jwt.getSubject());
+        return dispatchService.unassign(Team.SECURISATION, request, jwt.getSubject());
     }
 }

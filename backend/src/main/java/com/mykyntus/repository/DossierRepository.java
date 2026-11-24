@@ -15,6 +15,12 @@ public interface DossierRepository extends JpaRepository<Dossier, Long> {
 
     List<Dossier> findByIdExterneIn(Collection<String> idsExterne);
 
+    @Query("select d.id from Dossier d order by d.id")
+    List<Long> findAllIds();
+
+    @Query("select count(d) > 0 from Dossier d where d.complete is null")
+    boolean anyWithoutProgress();
+
     @Query("select d.id from Dossier d where d.flags is null")
     List<Long> findIdsWithoutFlags();
 
@@ -28,4 +34,12 @@ public interface DossierRepository extends JpaRepository<Dossier, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Dossier d set d.assignedTo = null, d.assignedAt = null where d.assignedTo = :pilote")
     int unassignAll(@Param("pilote") String pilote);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Dossier d set d.assignedPlanif = null, d.assignedPlanifAt = null where d.assignedPlanif = :pilote")
+    int unassignAllPlanif(@Param("pilote") String pilote);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Dossier d set d.assignedJ = null, d.assignedJAt = null where d.assignedJ = :pilote")
+    int unassignAllJ(@Param("pilote") String pilote);
 }

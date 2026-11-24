@@ -10,7 +10,10 @@ import com.mykyntus.exception.ApiException;
  *   <li>{@code raw:<column name>} : a column of the imported files</li>
  *   <li>{@code field:<id>} : an application column (J-1 / J / J+1)</li>
  *   <li>{@code flags} : flags of the dossier (P1, SECU...)</li>
- *   <li>{@code assignee} : sécurisation pilot the dossier is dispatched to</li>
+ *   <li>{@code assignee} : sécurisation pilot the dossier is dispatched to,
+ *       {@code assignee:PLANIFICATION} / {@code assignee:J} : agent of the other teams</li>
+ *   <li>{@code delay} : DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red)</li>
+ *   <li>{@code route} : PLANIFICATION (J-1 columns with the planification team) or SECURISATION</li>
  *   <li>{@code status:<SECTION>} : progress of a section (UNTOUCHED, IN_PROGRESS, DONE)</li>
  * </ul>
  */
@@ -22,6 +25,8 @@ public sealed interface ColumnKey {
     String FIELD_PREFIX = "field:";
     String FLAGS = "flags";
     String ASSIGNEE = "assignee";
+    String DELAY = "delay";
+    String ROUTE = "route";
     String STATUS_PREFIX = "status:";
 
     record DateKey() implements ColumnKey {
@@ -39,7 +44,15 @@ public sealed interface ColumnKey {
     record FlagsKey() implements ColumnKey {
     }
 
-    record AssigneeKey() implements ColumnKey {
+    record AssigneeKey(com.mykyntus.entity.Team team) implements ColumnKey {
+    }
+
+    /** Delay of the dossier (see DossierProgressService.Delay). */
+    record DelayKey() implements ColumnKey {
+    }
+
+    /** Team working the J-1 columns: PLANIFICATION or SECURISATION. */
+    record RouteKey() implements ColumnKey {
     }
 
     /** Progress of the dossier in one section: nothing filled, started, or done. */
@@ -60,7 +73,16 @@ public sealed interface ColumnKey {
             return new FlagsKey();
         }
         if (ASSIGNEE.equals(key)) {
-            return new AssigneeKey();
+            return new AssigneeKey(com.mykyntus.entity.Team.SECURISATION);
+        }
+        if (key.startsWith(ASSIGNEE + ":")) {
+            return new AssigneeKey(com.mykyntus.entity.Team.parse(key.substring(ASSIGNEE.length() + 1)));
+        }
+        if (DELAY.equals(key)) {
+            return new DelayKey();
+        }
+        if (ROUTE.equals(key)) {
+            return new RouteKey();
         }
         if (key.startsWith(RAW_PREFIX) && key.length() > RAW_PREFIX.length()) {
             return new RawKey(key.substring(RAW_PREFIX.length()));

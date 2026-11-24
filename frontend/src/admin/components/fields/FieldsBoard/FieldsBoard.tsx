@@ -13,10 +13,11 @@ import { FieldCard } from "../../card/FieldCard/FieldCard";
 import { FieldCreateModal } from "../../modal/FieldCreateModal/FieldCreateModal";
 
 const RIGHTS: Record<FieldSection, string> = {
-  SECURISATION: "Modifiable par l'admin sécurisation et les pilotes sécurisation. « Visible dans le suivi » = affiché en lecture aux autres.",
-  J_MINUS_1: "Modifiable par l'administrateur, l'admin sécurisation et les pilotes sécurisation.",
-  J: "Modifiable par l'administrateur et le pilote J.",
-  J_PLUS_1: "Modifiable par l'administrateur et le pilote J.",
+  SECURISATION: "Modifiable par l'admin sécurisation et les pilotes sécurisation. « Colonne J-1 » = passe à la planification quand la Cellule plani n'est pas « Planifié ».",
+  J_MINUS_1: "Ancienne section J-1 (fusionnée dans Sécurisation).",
+  PLANIFICATION: "Colonnes J-1 des dossiers non « Planifié » : agents planification et administrateur.",
+  J: "Modifiable par l'administrateur et les agents J.",
+  J_PLUS_1: "Modifiable par l'administrateur et les agents J.",
 };
 
 interface FieldsBoardProps {

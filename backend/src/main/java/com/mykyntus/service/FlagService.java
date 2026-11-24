@@ -111,6 +111,7 @@ public class FlagService {
         requireFlagRights(user);
         Dossier dossier = dossierRepository.findById(dossierId)
                 .orElseThrow(() -> ApiException.notFound("Dossier introuvable"));
+        DossierValueService.requireAssigned(dossier, user);
         Map<String, FlagDefinition> known = flagRepository.findAll().stream()
                 .collect(Collectors.toMap(f -> f.getCode().toUpperCase(Locale.ROOT), f -> f));
         Set<String> wanted = new HashSet<>();
@@ -137,6 +138,7 @@ public class FlagService {
         requireFlagRights(user);
         Dossier dossier = dossierRepository.findById(dossierId)
                 .orElseThrow(() -> ApiException.notFound("Dossier introuvable"));
+        DossierValueService.requireAssigned(dossier, user);
         String old = dossier.getFlags();
         dossier.setFlagsManual(false);
         applyAutomatic(dossier);
@@ -171,7 +173,7 @@ public class FlagService {
     }
 
     private static void requireFlagRights(CurrentUser user) {
-        if (user.role() == Role.PILOTE_J) {
+        if (user.role() == Role.PILOTE_J || user.role() == Role.PILOTE_PLANIFICATION) {
             throw ApiException.forbidden("Vous ne pouvez pas modifier les drapeaux");
         }
     }

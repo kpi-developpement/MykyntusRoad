@@ -6,6 +6,8 @@ import com.mykyntus.dto.dossier.*;
 import com.mykyntus.dto.field.AppFieldResponse;
 import com.mykyntus.dto.importing.ImportResultResponse;
 import com.mykyntus.dto.field.AppFieldRequest;
+import com.mykyntus.entity.Team;
+import com.mykyntus.dto.sec.AssignRequest;
 import com.mykyntus.entity.DataSource;
 import com.mykyntus.entity.EventType;
 import com.mykyntus.entity.FieldSection;
@@ -50,6 +52,8 @@ class ImportFlowIntegrationTest {
     AppFieldService fieldService;
     @Autowired
     SourceColumnService sourceColumnService;
+    @Autowired
+    DispatchService dispatchService;
 
     @Test
     void importThenFillValues() throws Exception {
@@ -69,11 +73,15 @@ class ImportFlowIntegrationTest {
 
         AppFieldResponse cellulePlani = field(table, "j1_cellule_plani");
         CurrentUser pilote = new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION);
-        assertThat(valueService.updateValue(row.id(), cellulePlani.id(), "Planifié", pilote).value())
+        CurrentUser secAdmin = new CurrentUser("admin.secu", Role.ADMIN_SECURISATION);
+        // a pilot only edits the dossiers dispatched to him
+        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "Planifié", pilote))
+                .isInstanceOf(ApiException.class);
+        assertThat(valueService.updateValue(row.id(), cellulePlani.id(), "Planifié", secAdmin).value())
                 .isEqualTo("Planifié");
 
         // value not in the dropdown
-        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "xxx", pilote))
+        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "xxx", secAdmin))
                 .isInstanceOf(ApiException.class);
 
         // pilote sécurisation cannot edit J section
@@ -114,23 +122,29 @@ class ImportFlowIntegrationTest {
                 .containsExactly("EPS-0022050200");
 
         AppFieldResponse etat = field(t, "sec_etat_final");
-        AppFieldResponse pilote = field(t, "sec_pilote");
         AppFieldResponse date = field(t, "sec_date_traitement");
         assertThat(etat.published()).isTrue();
+        // "Pilote" and "Département" are no longer shown (the dispatch gives the pilot)
+        assertThat(t.fields()).noneMatch(f -> f.code().equals("sec_pilote") || f.code().equals("sec_departement"));
 
         // only the sécurisation team writes the sécurisation section
         assertThatThrownBy(() -> valueService.updateValue(dossierId, etat.id(), "Sécurisé", admin)).isInstanceOf(ApiException.class);
-        FieldValueResponse saved = valueService.updateValue(dossierId, etat.id(), "Sécurisé", secPilot);
-        assertThat(saved.autoFilled()).containsEntry(pilote.id(), "Pilote sécurisation").containsKey(date.id());
-        assertThatThrownBy(() -> valueService.updateValue(dossierId, pilote.id(), "x", secPilot)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> valueService.updateValue(dossierId, etat.id(), "Sécurisé", secPilot)).isInstanceOf(ApiException.class);
+        dispatchService.assign(Team.SECURISATION, new AssignRequest(List.of(dossierId), "pilote.secu"), "admin.secu");
+        assertThat(valueService.updateValue(dossierId, etat.id(), "Sécurisé", secPilot).value()).isEqualTo("Sécurisé");
+        // "Date de traitement" filled automatically by the first sécurisation value ("Cellule plani")
+        assertThat(dossierService.search(new DossierSearchRequest(null, "EPS-0022050200", List.of(), null, 0, 5))
+                .rows().content().getFirst().values()).containsKey(date.id());
         valueService.updateValue(dossierId, etat.id(), "Reporté", secPilot);
 
         DossierTimelineResponse timeline = timelineService.timeline(dossierId);
         assertThat(timeline.stages()).extracting(DossierTimelineResponse.Stage::key)
-                .containsExactly("IMPORT", "SECURISATION", "J_MINUS_1", "J", "J_PLUS_1");
-        assertThat(timeline.stages().get(1).status()).isEqualTo("DONE");
+                .containsExactly("IMPORT", "SECURISATION", "J", "J_PLUS_1");
+        assertThat(timeline.stages().get(1).status()).isEqualTo("CURRENT");
         assertThat(timeline.stages().get(1).detail()).contains("Etat final : Reporté");
-        assertThat(timeline.stages().get(2).status()).isEqualTo("CURRENT");
+        assertThat(timeline.stages().get(1).fields()).anyMatch(f -> f.label().equals("Etat final") && "Reporté".equals(f.value()));
+        assertThat(timeline.stages().get(2).status()).isEqualTo("PENDING");
+        assertThat(timeline.mails()).extracting(DossierTimelineResponse.Mail::label).contains("Mail / Teams", "Mail");
         assertThat(timeline.edits()).isEqualTo(1);
         assertThat(timeline.events()).extracting(DossierTimelineResponse.Event::type)
                 .contains(EventType.CREATED, EventType.DATA_RECEIVED, EventType.VALUE_SET);
@@ -207,8 +221,9 @@ class ImportFlowIntegrationTest {
 
         DossierStatsResponse stats = dossierService.stats(criteria(List.of(), null));
         assertThat(stats.total()).isEqualTo(2);
-        assertThat(stats.sections()).filteredOn(s -> s.section() == FieldSection.J_MINUS_1)
-                .singleElement().extracting(DossierStatsResponse.SectionStat::treated).isEqualTo(1L);
+        // both: "Cellule plani" on the first one, N/A on both (no sécurisation file imported yet)
+        assertThat(stats.sections()).filteredOn(s -> s.section() == FieldSection.SECURISATION)
+                .singleElement().extracting(DossierStatsResponse.SectionStat::treated).isEqualTo(2L);
 
         assertThatThrownBy(() -> dossierService.search(criteria(List.of(new ColumnFilter("bad", null, "x")), null)))
                 .isInstanceOf(ApiException.class);

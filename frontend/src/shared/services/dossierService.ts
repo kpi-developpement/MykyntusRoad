@@ -9,6 +9,7 @@ export function toBody(c: DossierCriteria) {
     sort: c.sort,
     page: c.page,
     size: c.size,
+    pin: c.pin ?? null,
   };
 }
 

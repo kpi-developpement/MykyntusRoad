@@ -26,6 +26,8 @@ interface DataGridProps<T> {
   loadFacets: (key: string, q: string) => Promise<FacetResponse>;
   empty: React.ReactNode;
   maxHeight?: string;
+  /** Rows shown greyed out (e.g. dossiers that are not the pilot's own). */
+  rowMuted?: (row: T) => boolean;
 }
 
 const DEFAULT_SUBHEADER = "bg-brand-50 text-brand-950";
@@ -57,6 +59,7 @@ export function DataGrid<T>({
   loadFacets,
   empty,
   maxHeight = "calc(100dvh - 15rem)",
+  rowMuted,
 }: DataGridProps<T>) {
   const [scrolledX, setScrolledX] = useState(false);
 
@@ -190,7 +193,8 @@ export function DataGrid<T>({
               : rows.map((row, i) => (
                   <tr
                     key={rowKey(row)}
-                    className={cn("group/row", i < ANIMATED_ROWS && "animate-row-in")}
+                    title={rowMuted?.(row) ? "Dossier non attribué à vous : lecture seule" : undefined}
+                    className={cn("group/row", i < ANIMATED_ROWS && "animate-row-in", rowMuted?.(row) && "[&>td]:bg-slate-50 [&>td>*]:opacity-55")}
                     style={i < ANIMATED_ROWS ? { animationDelay: `${i * 16}ms` } : undefined}
                   >
                     {ordered.map((c, j) => (

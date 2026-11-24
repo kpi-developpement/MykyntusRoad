@@ -5,6 +5,7 @@ import com.mykyntus.dto.flag.FlagCreateRequest;
 import com.mykyntus.dto.importing.ImportResultResponse;
 import com.mykyntus.dto.sec.*;
 import com.mykyntus.entity.Role;
+import com.mykyntus.entity.Team;
 import com.mykyntus.exception.ApiException;
 import com.mykyntus.security.CurrentUser;
 import com.mykyntus.service.*;
@@ -60,13 +61,16 @@ class DispatchIntegrationTest {
 
         // manual flags survive a re-import, reset brings the automatic ones back
         CurrentUser pilot = new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION);
+        CurrentUser secAdmin = new CurrentUser("admin.secu", Role.ADMIN_SECURISATION);
         flagService.create(new FlagCreateRequest("vip", "Client VIP", "FUCHSIA"), pilot);
-        flagService.setManual(first.id(), List.of("VIP", "P2"), pilot);
+        // a pilot only changes the flags of his own dossiers
+        assertThatThrownBy(() -> flagService.setManual(first.id(), List.of("VIP"), pilot)).isInstanceOf(ApiException.class);
+        flagService.setManual(first.id(), List.of("VIP", "P2"), secAdmin);
         importService.importSecurisation(0, globalFile(), DAY, "admin.secu");
         assertThat(row("EPS-0000000001").flags()).containsExactly("P2", "VIP");
-        flagService.reset(first.id(), pilot);
+        flagService.reset(first.id(), secAdmin);
         assertThat(row("EPS-0000000001").flags()).containsExactly("P1", "SECU", "GEM");
-        assertThatThrownBy(() -> flagService.setManual(first.id(), List.of("NOPE"), pilot)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> flagService.setManual(first.id(), List.of("NOPE"), secAdmin)).isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> flagService.create(new FlagCreateRequest("X", "x", "RED"), pilot)).isInstanceOf(ApiException.class);
 
         // flag filter and facets
@@ -79,7 +83,7 @@ class DispatchIntegrationTest {
         for (String name : List.of("pa", "pb", "pc")) {
             piloteService.create(new PiloteCreateRequest(name, "secret1", "Pilote " + name));
         }
-        DispatchResult dispatch = dispatchService.dispatch(new DispatchRequest(criteria(), List.of("pa", "pb", "pc"), true), "admin.secu");
+        DispatchResult dispatch = dispatchService.dispatch(Team.SECURISATION, new DispatchRequest(criteria(), List.of("pa", "pb", "pc"), true), "admin.secu");
         assertThat(dispatch.moved()).isEqualTo(9);
         assertThat(dispatch.summary().unassigned()).isZero();
         Map<String, DispatchSummary.PiloteLoad> loads = loads(dispatch.summary());
@@ -90,10 +94,10 @@ class DispatchIntegrationTest {
         assertThat(ids(new ColumnFilter("assignee", List.of("pa"), null))).hasSize(3);
 
         // dispatching the unassigned again changes nothing
-        assertThat(dispatchService.dispatch(new DispatchRequest(criteria(), List.of("pa", "pb", "pc"), true), "admin.secu").moved()).isZero();
+        assertThat(dispatchService.dispatch(Team.SECURISATION, new DispatchRequest(criteria(), List.of("pa", "pb", "pc"), true), "admin.secu").moved()).isZero();
 
         // pilot "pa" absent: his dossiers go to the others
-        DispatchResult transfer = dispatchService.transfer(new TransferRequest(criteria(), "pa", List.of("pb", "pc"), null, false), "admin.secu");
+        DispatchResult transfer = dispatchService.transfer(Team.SECURISATION, new TransferRequest(criteria(), "pa", List.of("pb", "pc"), null, false), "admin.secu");
         assertThat(transfer.moved()).isEqualTo(3);
         loads = loads(transfer.summary());
         assertThat(loads.get("pa").assigned()).isZero();
@@ -101,9 +105,13 @@ class DispatchIntegrationTest {
         assertThat(Math.abs(loads.get("pb").assigned() - loads.get("pc").assigned())).isLessThanOrEqualTo(1);
 
         // manual change of one dossier
-        dispatchService.assign(new AssignRequest(List.of(first.id()), "pa"), "admin.secu");
+        dispatchService.assign(Team.SECURISATION, new AssignRequest(List.of(first.id()), "pa"), "admin.secu");
         assertThat(row("EPS-0000000001").assignedTo()).isEqualTo("pa");
-        assertThatThrownBy(() -> dispatchService.assign(new AssignRequest(List.of(first.id()), "ghost"), "admin.secu"))
+        flagService.setManual(first.id(), List.of("P2"), new CurrentUser("pa", Role.PILOTE_SECURISATION));
+        assertThatThrownBy(() -> flagService.setManual(first.id(), List.of("P1"), new CurrentUser("pb", Role.PILOTE_SECURISATION)))
+                .isInstanceOf(ApiException.class);
+        flagService.reset(first.id(), secAdmin);
+        assertThatThrownBy(() -> dispatchService.assign(Team.SECURISATION, new AssignRequest(List.of(first.id()), "ghost"), "admin.secu"))
                 .isInstanceOf(ApiException.class);
 
         // export: flags and pilot included

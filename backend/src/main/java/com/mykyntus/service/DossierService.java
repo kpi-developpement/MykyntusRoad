@@ -51,7 +51,9 @@ public class DossierService {
                 .map(d -> new DossierRowResponse(d.getId(), d.getIdExterne(), d.getDossierDate(),
                         new LinkedHashMap<>(d.getRawData()),
                         valuesByDossier.getOrDefault(d.getId(), Map.of()),
-                        FlagService.decode(d.getFlags()), d.isFlagsManual(), d.getAssignedTo()))
+                        FlagService.decode(d.getFlags()), d.isFlagsManual(), d.getAssignedTo(),
+                        d.getAssignedPlanif(), d.getAssignedJ(), d.isRoutedPlanif(), d.isHorsSecu(),
+                        DossierProgressService.delay(d).name()))
                 .toList();
 
         List<SourceColumnResponse> columns = sourceColumnRepository.findByVisibleTrueOrderByPositionAsc()

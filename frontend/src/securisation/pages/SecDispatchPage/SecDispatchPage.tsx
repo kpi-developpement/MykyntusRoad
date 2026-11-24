@@ -33,8 +33,8 @@ import { Surface } from "@/shared/components/surface/Surface/Surface";
 import { useToast } from "@/shared/components/toast/ToastProvider/ToastProvider";
 import { useFlags } from "@/shared/hooks/useFlags";
 import { useTilt } from "@/shared/hooks/useTilt";
-import { secService } from "@/shared/services/secService";
-import type { DispatchSummary, DossierCriteria, PiloteLoad } from "@/shared/types";
+import { teamService } from "@/shared/services/teamService";
+import type { DispatchSummary, DossierCriteria, PiloteLoad, Team } from "@/shared/types";
 import { cn } from "@/shared/utils/cn";
 import { formatDateLong, tomorrow } from "@/shared/utils/date";
 import { flagTone } from "@/shared/utils/flagColors";
@@ -45,15 +45,35 @@ type Mode = "unassigned" | "all";
 
 const nameOf = (p: { fullName: string | null; username: string }) => p.fullName || p.username;
 
+interface DispatchPageProps {
+  /** Team dispatched (sécurisation: sécurisation admin; planification / J: admin). */
+  team?: Team;
+  eyebrow?: string;
+  description?: string;
+  /** Where the pilots of the team are managed. */
+  pilotesHref?: string;
+  /** Default date of the scope. */
+  initialDate?: string;
+  /** Extra header content (e.g. team switch). */
+  headerExtra?: React.ReactNode;
+}
+
 /**
- * Option 3: equitable dispatch of the work between the selected pilots, then live changes
- * (transfer, removal, one-by-one reassignment from the sécurisation space).
+ * Equitable dispatch of a team's work between the selected pilots, then live changes
+ * (transfer, removal, one-by-one reassignment from the tables).
  */
-export function SecDispatchPage() {
+export function SecDispatchPage({
+  team = "SECURISATION",
+  eyebrow = "Sécurisation",
+  description = "Choisissez les pilotes : les dossiers sont répartis à parts égales et chacun reçoit sa part de P1, P2, GEM, TH… Modifiez ensuite la répartition à tout moment.",
+  pilotesHref = "/securisation/pilotes",
+  initialDate,
+  headerExtra,
+}: DispatchPageProps = {}) {
   const toast = useToast();
   const confirm = useConfirm();
   const { flags } = useFlags();
-  const [date, setDate] = useState(tomorrow());
+  const [date, setDate] = useState(initialDate ?? tomorrow());
   const [scopeFlags, setScopeFlags] = useState<string[]>([]);
   const [summary, setSummary] = useState<DispatchSummary | null>(null);
   const [token, setToken] = useState(0);
@@ -75,8 +95,8 @@ export function SecDispatchPage() {
   useEffect(() => {
     let cancelled = false;
     const key = JSON.stringify([criteria, token]);
-    secService
-      .summary(criteria)
+    teamService
+      .summary(team, criteria)
       .then((s) => {
         if (cancelled) return;
         setSummary(s);
@@ -88,7 +108,7 @@ export function SecDispatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [criteria, token, toast]);
+  }, [criteria, token, toast, team]);
 
   const reload = useCallback(() => setToken((t) => t + 1), []);
   const pilotes = useMemo(() => summary?.pilotes ?? [], [summary]);
@@ -131,7 +151,7 @@ export function SecDispatchPage() {
     }
     setRunning(true);
     try {
-      const res = await secService.dispatch(criteria, chosen, mode === "unassigned");
+      const res = await teamService.dispatch(team, criteria, chosen, mode === "unassigned");
       if (res.summary) setSummary(res.summary);
       if (res.moved > 0) {
         setBurst((b) => b + 1);
@@ -157,7 +177,7 @@ export function SecDispatchPage() {
     });
     if (!ok) return;
     try {
-      const res = await secService.unassign(criteria, p?.username ?? null);
+      const res = await teamService.unassign(team, criteria, p?.username ?? null);
       if (res.summary) setSummary(res.summary);
       toast.success(`${res.moved} dossier(s) retirés`);
     } catch (e) {
@@ -168,7 +188,7 @@ export function SecDispatchPage() {
   async function transfer(to: string[], count: number | null, includeTreated: boolean) {
     if (!transferFrom) return;
     try {
-      const res = await secService.transfer(criteria, transferFrom.username, to, count, includeTreated);
+      const res = await teamService.transfer(team, criteria, transferFrom.username, to, count, includeTreated);
       if (res.summary) setSummary(res.summary);
       toast.success(`${res.moved} dossier(s) transférés`, `Depuis ${nameOf(transferFrom)}`);
       setTransferFrom(null);
@@ -182,13 +202,14 @@ export function SecDispatchPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Sécurisation"
+        eyebrow={eyebrow}
         title="Dispatch"
-        description="Choisissez les pilotes : les dossiers sont répartis à parts égales et chacun reçoit sa part de P1, P2, GEM, TH… Modifiez ensuite la répartition à tout moment."
+        description={description}
         icon={<Shuffle />}
         actions={
           <>
-            <LinkButton href="/securisation/pilotes" variant="secondary" leftIcon={<UserPlus />}>
+            {headerExtra}
+            <LinkButton href={pilotesHref} variant="secondary" leftIcon={<UserPlus />}>
               Pilotes
             </LinkButton>
             <IconButton variant="secondary" label="Actualiser" onClick={reload}>
@@ -231,7 +252,7 @@ export function SecDispatchPage() {
       <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KpiCard label="Dossiers" value={summary?.total ?? 0} icon={FolderOpen} tone="slate" hint={date ? `Pour le ${formatDateLong(date)}` : "Toutes les dates"} index={0} />
         <KpiCard label="Non attribués" value={summary?.unassigned ?? 0} total={summary?.total} icon={Inbox} tone="sky" hint="À dispatcher" index={1} />
-        <KpiCard label="Traités" value={summary?.treated ?? 0} total={summary?.total} icon={CheckCheck} tone="cyan" hint="Etat final saisi" index={2} />
+        <KpiCard label="Traités" value={summary?.treated ?? 0} total={summary?.total} icon={CheckCheck} tone="cyan" hint={team === "SECURISATION" ? "Etat final saisi" : team === "PLANIFICATION" ? "Colonnes J-1 remplies" : "Dossier clôturé"} index={2} />
         <KpiCard label="Pilotes actifs" value={active.length} icon={UsersRound} tone="brand" hint={`${chosen.length} sélectionné(s)`} index={3} />
       </div>
 
@@ -263,9 +284,9 @@ export function SecDispatchPage() {
             <EmptyState
               icon={<UsersRound />}
               title="Aucun pilote actif"
-              description="Créez vos pilotes sécurisation pour pouvoir leur dispatcher les dossiers."
+              description={team === "SECURISATION" ? "Créez vos pilotes sécurisation pour pouvoir leur dispatcher les dossiers." : "Créez les comptes de l'équipe (page Utilisateurs) pour pouvoir leur dispatcher les dossiers."}
               action={
-                <LinkButton href="/securisation/pilotes" leftIcon={<UserPlus />}>
+                <LinkButton href={pilotesHref} leftIcon={<UserPlus />}>
                   Créer un pilote
                 </LinkButton>
               }

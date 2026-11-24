@@ -1,7 +1,8 @@
 "use client";
 
 import { useFlags } from "../../../hooks/useFlags";
-import type { DossierRow, Pilote, SourceColumn } from "../../../types";
+import { DELAY_LABELS, TEAM_LABELS, assigneeKey, assigneeOf, type Delay, type DossierRow, type Pilote, type SourceColumn, type Team } from "../../../types";
+import { DelayBadge } from "../../dossier/DelayBadge/DelayBadge";
 import { formatDate, weekdayShort } from "../../../utils/date";
 import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
 import { AssigneeCell, piloteName } from "../../dossier/AssigneeCell/AssigneeCell";
@@ -38,16 +39,18 @@ export function flagsColumn({ editable, codes, onApply, onReset }: FlagColumnOpt
 }
 
 export interface AssigneeColumnOptions {
+  /** Team whose assignment is shown (default: sécurisation). */
+  team?: Team;
   pilotes: Pilote[] | null;
   editable: boolean;
-  onAssign: (row: DossierRow, pilote: string | null) => Promise<void>;
+  onAssign: (row: DossierRow, pilote: string | null, team: Team) => Promise<void>;
 }
 
-/** Column "Pilote assigné" (dispatch). */
-export function assigneeColumn({ pilotes, editable, onAssign }: AssigneeColumnOptions): GridColumn<DossierRow> {
+/** Column "Pilote sécurisation" / "Agent planification" / "Agent J / J+1" (dispatch). */
+export function assigneeColumn({ team = "SECURISATION", pilotes, editable, onAssign }: AssigneeColumnOptions): GridColumn<DossierRow> {
   return {
-    key: "assignee",
-    label: "Pilote assigné",
+    key: assigneeKey(team),
+    label: TEAM_LABELS[team],
     filterKind: "enum",
     width: 190,
     sortable: true,
@@ -59,7 +62,36 @@ export function assigneeColumn({ pilotes, editable, onAssign }: AssigneeColumnOp
         {piloteName(v, pilotes)}
       </span>
     ),
-    render: (row) => <AssigneeCell row={row} pilotes={pilotes} editable={editable} onAssign={onAssign} />,
+    render: (row) => (
+      <AssigneeCell
+        assignee={assigneeOf(row, team)}
+        pilotes={pilotes}
+        editable={editable}
+        onAssign={(pilote) => onAssign(row, pilote, team)}
+      />
+    ),
+  };
+}
+
+const DELAYS: Delay[] = ["LATE", "SOON", "ON_TIME", "DONE"];
+
+/** Column "Délai": red after J+1 12:00, orange on J+1 morning, green when every column is filled. */
+export function delayColumn(): GridColumn<DossierRow> {
+  return {
+    key: "delay",
+    label: "Délai",
+    filterKind: "enum",
+    width: 170,
+    sortable: false,
+    filterable: true,
+    knownValues: DELAYS,
+    formatValue: (v) => DELAY_LABELS[v as Delay] ?? v,
+    renderValue: (v) => <DelayBadge delay={v as Delay} />,
+    render: (row) => (
+      <span className="flex h-8 items-center px-1">
+        <DelayBadge delay={row.delay} />
+      </span>
+    ),
   };
 }
 
@@ -136,4 +168,32 @@ export const ID_EXTERNE_HEADER = "ordre de travail: id externe";
 
 export function isIdExterneColumn(name: string): boolean {
   return name.trim().toLowerCase().replace(/\s+/g, " ") === ID_EXTERNE_HEADER;
+}
+
+/** Column "Équipe J-1": who works the J-1 columns (Planification when "Cellule plani" is not "Planifié"). */
+export function routeColumn(): GridColumn<DossierRow> {
+  const label = (v: string) => (v === "PLANIFICATION" ? "Planification" : "Sécurisation");
+  const chip = (v: string) => (
+    <span
+      className={
+        v === "PLANIFICATION"
+          ? "rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200"
+          : "rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-200"
+      }
+    >
+      {label(v)}
+    </span>
+  );
+  return {
+    key: "route",
+    label: "Équipe J-1",
+    filterKind: "enum",
+    width: 150,
+    sortable: true,
+    filterable: true,
+    knownValues: ["PLANIFICATION", "SECURISATION"],
+    formatValue: label,
+    renderValue: chip,
+    render: (row) => <span className="flex h-8 items-center px-1">{chip(row.planification ? "PLANIFICATION" : "SECURISATION")}</span>,
+  };
 }

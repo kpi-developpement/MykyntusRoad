@@ -2,12 +2,14 @@ package com.mykyntus.service;
 
 import com.mykyntus.dto.dossier.DossierSearchRequest;
 import com.mykyntus.dto.sec.*;
-import com.mykyntus.entity.AppField;
 import com.mykyntus.entity.AppUser;
 import com.mykyntus.entity.DossierEvent;
 import com.mykyntus.entity.EventType;
+import com.mykyntus.entity.FieldSection;
+import com.mykyntus.entity.Team;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import com.mykyntus.exception.ApiException;
-import com.mykyntus.repository.AppFieldRepository;
 import com.mykyntus.repository.DossierEventRepository;
 import com.mykyntus.repository.DossierRepository;
 import com.mykyntus.repository.search.ColumnKey;
@@ -23,7 +25,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Dispatch of the sécurisation work between the pilots.
+ * Dispatch of a team's work between its pilots (sécurisation, planification or J agents).
  * <p>
  * Equitable on two levels: every pilot ends with the same number of dossiers to treat (± 1, current
  * loads included), and each kind of dossier (P1, P2, GEM, TH...) is spread evenly, so nobody gets all the
@@ -37,28 +39,30 @@ public class DispatchService {
     /** Priority of the flags: a dossier belongs to the first group it matches. */
     private static final List<String> PRIORITY = List.of("P1", "P2", "GEM", "TH", "RTI", "R1", "R2", "R3&+", "MIG", "GRE", "SECU");
     private static final int CHUNK = 1000;
-    private static final String TREATED_FIELD = "sec_etat_final";
 
     private final DossierSearchRepository searchRepository;
     private final DossierRepository dossierRepository;
     private final DossierEventRepository eventRepository;
-    private final AppFieldRepository fieldRepository;
     private final PiloteService piloteService;
+    private final DossierProgressService progressService;
+
+    @PersistenceContext
+    private EntityManager em;
 
     // ------------------------------------------------------------------ summary
 
     @Transactional(readOnly = true)
-    public DispatchSummary summary(DossierSearchRequest criteria) {
-        return summarize(scope(criteria));
+    public DispatchSummary summary(Team team, DossierSearchRequest criteria) {
+        return summarize(team, scope(team, criteria));
     }
 
     // ------------------------------------------------------------------ dispatch
 
     @Transactional
-    public DispatchResult dispatch(DispatchRequest request, String actor) {
-        Map<String, AppUser> active = piloteService.activePilotes();
+    public DispatchResult dispatch(Team team, DispatchRequest request, String actor) {
+        Map<String, AppUser> active = piloteService.activePilotes(team);
         List<String> pilotes = validPilotes(request.pilotes(), active);
-        List<ScopeRow> scope = scope(request.criteria());
+        List<ScopeRow> scope = scope(team, request.criteria());
 
         Map<String, Integer> base = new LinkedHashMap<>();
         pilotes.forEach(p -> base.put(p, 0));
@@ -76,32 +80,32 @@ public class DispatchService {
             }
         }
         Map<String, List<Long>> plan = plan(targets, base, scope, pilotes);
-        int moved = apply(plan, targets, active, actor, "dispatch");
-        log.info("Dispatch by {}: {} dossiers between {} pilots", actor, moved, pilotes.size());
-        return new DispatchResult(moved, summarize(scope(request.criteria())));
+        int moved = apply(team, plan, targets, active, actor, "dispatch");
+        log.info("Dispatch {} by {}: {} dossiers between {} pilots", team, actor, moved, pilotes.size());
+        return new DispatchResult(moved, summarize(team, scope(team, request.criteria())));
     }
 
     /** Manual change: these dossiers go to one pilot (or back to "not dispatched"). */
     @Transactional
-    public DispatchResult assign(AssignRequest request, String actor) {
+    public DispatchResult assign(Team team, AssignRequest request, String actor) {
         if (request.dossierIds() == null || request.dossierIds().isEmpty()) {
             throw ApiException.badRequest("Aucun dossier sélectionné");
         }
-        Map<String, AppUser> active = piloteService.activePilotes();
+        Map<String, AppUser> active = piloteService.activePilotes(team);
         String pilote = request.pilote() == null || request.pilote().isBlank() ? null : request.pilote().trim();
         if (pilote != null && !active.containsKey(pilote)) {
             throw ApiException.badRequest("Pilote inconnu ou désactivé : " + pilote);
         }
         Map<String, List<Long>> plan = new HashMap<>();
         plan.put(pilote, new ArrayList<>(new LinkedHashSet<>(request.dossierIds())));
-        int moved = apply(plan, null, active, actor, "modification manuelle");
+        int moved = apply(team, plan, null, active, actor, "modification manuelle");
         return new DispatchResult(moved, null);
     }
 
     /** Moves (part of) the dossiers of a pilot to other pilots, spread equitably. */
     @Transactional
-    public DispatchResult transfer(TransferRequest request, String actor) {
-        Map<String, AppUser> active = piloteService.activePilotes();
+    public DispatchResult transfer(Team team, TransferRequest request, String actor) {
+        Map<String, AppUser> active = piloteService.activePilotes(team);
         if (request.from() == null || request.from().isBlank()) {
             throw ApiException.badRequest("Pilote d'origine manquant");
         }
@@ -109,7 +113,7 @@ public class DispatchService {
         if (to.isEmpty()) {
             throw ApiException.badRequest("Choisissez au moins un autre pilote");
         }
-        List<ScopeRow> scope = scope(request.criteria());
+        List<ScopeRow> scope = scope(team, request.criteria());
         List<ScopeRow> owned = scope.stream()
                 .filter(r -> request.from().equals(r.assignedTo()) && (request.includeTreated() || !r.treated()))
                 .sorted(byPriority())
@@ -125,14 +129,14 @@ public class DispatchService {
             }
         }
         Map<String, List<Long>> plan = plan(targets, base, scope, to);
-        int moved = apply(plan, targets, active, actor, "transfert depuis " + request.from());
-        return new DispatchResult(moved, summarize(scope(request.criteria())));
+        int moved = apply(team, plan, targets, active, actor, "transfert depuis " + request.from());
+        return new DispatchResult(moved, summarize(team, scope(team, request.criteria())));
     }
 
     /** Removes the pilot of the dossiers in scope. */
     @Transactional
-    public DispatchResult unassign(UnassignRequest request, String actor) {
-        List<ScopeRow> scope = scope(request.criteria());
+    public DispatchResult unassign(Team team, UnassignRequest request, String actor) {
+        List<ScopeRow> scope = scope(team, request.criteria());
         List<Long> ids = scope.stream()
                 .filter(r -> r.assignedTo() != null)
                 .filter(r -> request.pilote() == null || request.pilote().equals(r.assignedTo()))
@@ -141,8 +145,8 @@ public class DispatchService {
                 .toList();
         Map<String, List<Long>> plan = new HashMap<>();
         plan.put(null, ids);
-        int moved = apply(plan, null, piloteService.activePilotes(), actor, "retrait du dispatch");
-        return new DispatchResult(moved, summarize(scope(request.criteria())));
+        int moved = apply(team, plan, null, piloteService.activePilotes(team), actor, "retrait du dispatch");
+        return new DispatchResult(moved, summarize(team, scope(team, request.criteria())));
     }
 
     // ------------------------------------------------------------------ algorithm
@@ -206,7 +210,7 @@ public class DispatchService {
     }
 
     /** Writes the plan (bulk updates) and one life-cycle event per dossier whose pilot changed. */
-    private int apply(Map<String, List<Long>> plan, List<ScopeRow> known, Map<String, AppUser> active, String actor, String how) {
+    private int apply(Team team, Map<String, List<Long>> plan, List<ScopeRow> known, Map<String, AppUser> active, String actor, String how) {
         Map<Long, String> before = new HashMap<>();
         if (known != null) {
             known.forEach(r -> before.put(r.id(), r.assignedTo()));
@@ -214,7 +218,7 @@ public class DispatchService {
             List<Long> all = plan.values().stream().flatMap(List::stream).toList();
             for (int i = 0; i < all.size(); i += CHUNK) {
                 dossierRepository.findAllById(all.subList(i, Math.min(i + CHUNK, all.size())))
-                        .forEach(d -> before.put(d.getId(), d.getAssignedTo()));
+                        .forEach(d -> before.put(d.getId(), team.assignee(d)));
             }
         }
         LocalDateTime now = LocalDateTime.now();
@@ -226,14 +230,19 @@ public class DispatchService {
                     .filter(id -> before.containsKey(id) && !Objects.equals(before.get(id), pilote))
                     .toList();
             for (int i = 0; i < ids.size(); i += CHUNK) {
-                dossierRepository.assign(ids.subList(i, Math.min(i + CHUNK, ids.size())), pilote, pilote == null ? null : now);
+                assign(team, ids.subList(i, Math.min(i + CHUNK, ids.size())), pilote, pilote == null ? null : now);
             }
             for (Long id : ids) {
                 String old = before.get(id);
                 events.add(DossierEvent.builder()
                         .dossier(dossierRepository.getReferenceById(id))
                         .type(EventType.ASSIGNED)
-                        .fieldLabel("Pilote assigné")
+                        .section(switch (team) {
+                            case SECURISATION -> FieldSection.SECURISATION;
+                            case PLANIFICATION -> FieldSection.PLANIFICATION;
+                            case J -> FieldSection.J;
+                        })
+                        .fieldLabel(team.label())
                         .oldValue(old == null ? null : name(old, active))
                         .newValue(pilote == null ? null : name(pilote, active))
                         .detail(pilote == null ? "Retiré du dispatch (" + how + ")" : "Attribué à " + name(pilote, active) + " (" + how + ")")
@@ -250,17 +259,25 @@ public class DispatchService {
 
     // ------------------------------------------------------------------ helpers
 
-    private List<ScopeRow> scope(DossierSearchRequest criteria) {
-        DossierSearchRequest c = criteria == null ? DossierSearchRequest.empty() : criteria;
-        c.filtersOrEmpty().stream().filter(Objects::nonNull).forEach(f -> ColumnKey.parse(f.key()));
-        Long treatedField = fieldRepository.findAll().stream()
-                .filter(f -> TREATED_FIELD.equals(f.getCode()) && f.isActive())
-                .map(AppField::getId).findFirst().orElse(null);
-        return searchRepository.scope(c, treatedField);
+    /** Bulk update of the team's assignment (property names come from the {@link Team} enum). */
+    private void assign(Team team, List<Long> ids, String pilote, LocalDateTime at) {
+        em.flush();
+        em.createQuery("update Dossier d set d." + team.property() + " = :pilote, d." + team.dateProperty() + " = :at where d.id in :ids")
+                .setParameter("pilote", pilote)
+                .setParameter("at", at)
+                .setParameter("ids", ids)
+                .executeUpdate();
+        em.clear();
     }
 
-    private DispatchSummary summarize(List<ScopeRow> scope) {
-        Map<String, AppUser> all = piloteService.allPilotes().stream()
+    private List<ScopeRow> scope(Team team, DossierSearchRequest criteria) {
+        DossierSearchRequest c = criteria == null ? DossierSearchRequest.empty() : criteria;
+        c.filtersOrEmpty().stream().filter(Objects::nonNull).forEach(f -> ColumnKey.parse(f.key()));
+        return searchRepository.scope(c, team, progressService.treatedFields(team));
+    }
+
+    private DispatchSummary summarize(Team team, List<ScopeRow> scope) {
+        Map<String, AppUser> all = piloteService.allPilotes(team).stream()
                 .collect(Collectors.toMap(AppUser::getUsername, u -> u));
         Map<String, long[]> counts = new LinkedHashMap<>();
         Map<String, Map<String, Long>> flags = new HashMap<>();

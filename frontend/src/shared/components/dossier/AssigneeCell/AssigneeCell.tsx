@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { Check, ChevronDown, UserMinus, UserRound } from "lucide-react";
-import type { DossierRow, Pilote } from "../../../types";
+import type { Pilote } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
 import { Popover } from "../../popover/Popover/Popover";
 
 interface AssigneeCellProps {
-  row: DossierRow;
+  /** Username the dossier is dispatched to in this team. */
+  assignee: string | null;
   /** Pilots known by the screen (sécurisation admin), used for names and reassignment. */
   pilotes: Pilote[] | null;
   editable: boolean;
-  onAssign: (row: DossierRow, pilote: string | null) => Promise<void>;
+  onAssign: (pilote: string | null) => Promise<void>;
 }
 
 export function piloteName(username: string | null, pilotes: Pilote[] | null): string {
@@ -20,13 +21,13 @@ export function piloteName(username: string | null, pilotes: Pilote[] | null): s
   return pilotes?.find((p) => p.username === username)?.fullName || username;
 }
 
-/** Pilot the dossier is dispatched to. The sécurisation admin changes it in one click. */
-export function AssigneeCell({ row, pilotes, editable, onAssign }: AssigneeCellProps) {
+/** Pilot / agent the dossier is dispatched to. The admin of the team changes it in one click. */
+export function AssigneeCell({ assignee, pilotes, editable, onAssign }: AssigneeCellProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
-  const name = piloteName(row.assignedTo, pilotes);
+  const name = piloteName(assignee, pilotes);
 
-  const display = row.assignedTo ? (
+  const display = assignee ? (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-slate-700" title={name}>
       <Avatar1 name={name} size="sm" className="size-5 text-[8px] ring-1" />
       <span className="truncate">{name}</span>
@@ -41,10 +42,10 @@ export function AssigneeCell({ row, pilotes, editable, onAssign }: AssigneeCellP
 
   async function choose(pilote: string | null) {
     setAnchor(null);
-    if (pilote === row.assignedTo) return;
+    if (pilote === assignee) return;
     setBusy(true);
     try {
-      await onAssign(row, pilote);
+      await onAssign(pilote);
     } finally {
       setBusy(false);
     }
@@ -79,12 +80,12 @@ export function AssigneeCell({ row, pilotes, editable, onAssign }: AssigneeCellP
               >
                 <Avatar1 name={p.fullName || p.username} size="sm" className="size-6 text-[9px]" />
                 <span className="min-w-0 flex-1 truncate">{p.fullName || p.username}</span>
-                {p.username === row.assignedTo && <Check className="size-4 text-brand-600" />}
+                {p.username === assignee && <Check className="size-4 text-brand-600" />}
               </button>
             </li>
           ))}
           {active.length === 0 && <li className="px-2 py-2 text-xs text-slate-500">Aucun pilote actif.</li>}
-          {row.assignedTo && (
+          {assignee && (
             <li className="mt-1 border-t border-slate-100 pt-1">
               <button
                 type="button"

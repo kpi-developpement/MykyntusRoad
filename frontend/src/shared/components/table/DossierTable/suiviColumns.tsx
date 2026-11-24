@@ -1,11 +1,22 @@
 import { Eye, Lock } from "lucide-react";
-import type { DataSource, DossierRow, DossierStats, DossierTable, FieldSection } from "../../../types";
+import type { AppField, DataSource, DossierRow, DossierStats, DossierTable, FieldSection } from "../../../types";
 import { SECTION_LABELS, SECTIONS, SOURCE_LABELS } from "../../../types";
 import { SECTION_THEME, sourceGroup } from "../../../utils/sectionTheme";
 import { ValueChip } from "../../badge/ValueChip/ValueChip";
 import { ValuePicker } from "../../select/ValuePicker/ValuePicker";
 import type { GridColumn, GridGroup } from "../DataGrid/types";
-import { assigneeColumn, dateColumn, flagsColumn, idColumn, isIdExterneColumn, rawColumn, type AssigneeColumnOptions, type FlagColumnOptions } from "./commonColumns";
+import {
+  assigneeColumn,
+  dateColumn,
+  delayColumn,
+  flagsColumn,
+  idColumn,
+  isIdExterneColumn,
+  rawColumn,
+  routeColumn,
+  type AssigneeColumnOptions,
+  type FlagColumnOptions,
+} from "./commonColumns";
 
 interface SuiviColumnsOptions {
   data: DossierTable | null;
@@ -20,29 +31,65 @@ interface SuiviColumnsOptions {
   onOpen: (row: DossierRow) => void;
   /** "Drapeaux" column. */
   flags?: FlagColumnOptions | null;
-  /** "Pilote assigné" column (dispatch). */
-  assignee?: AssigneeColumnOptions | null;
+  /** Assignment columns (one per team shown). */
+  assignees?: AssigneeColumnOptions[];
+  /** A pilot only edits the dossiers dispatched to him: the others stay read only. */
+  canEditRow?: (row: DossierRow) => boolean;
+}
+
+/** The 3 sécurisation files come last, after the work columns. */
+const LAST_SOURCES: DataSource[] = ["SEC_1", "SEC_2", "SEC_3"];
+
+/** Section a column belongs to for this dossier: a J-1 column goes to Planification when the dossier is not "Planifié". */
+export function effectiveSection(field: AppField, row: DossierRow): FieldSection {
+  return field.planification && row.planification ? "PLANIFICATION" : field.section;
+}
+
+/** Columns of a header group. */
+function groupFields(data: DossierTable | null, section: FieldSection, sections: FieldSection[]): AppField[] {
+  const fields = data?.fields ?? [];
+  const full = sections.includes(section);
+  if (section === "PLANIFICATION") return full ? fields.filter((f) => f.planification) : [];
+  if (section === "SECURISATION") {
+    // J-1 columns stay with Sécurisation unless the screen shows a Planification group
+    return fields.filter((f) => f.section === section && (full ? !(f.planification && sections.includes("PLANIFICATION")) : f.published && !f.planification));
+  }
+  return fields.filter((f) => f.section === section && (full || f.published));
 }
 
 /**
- * Columns of a follow-up table: Date | ID Externe | imported columns | application columns
- * grouped by section (Sécurisation, J-1, J, J+1).
+ * Columns of a follow-up table: Date | ID Externe | Délai | Drapeaux | assignments | imported columns |
+ * application columns grouped by service (Sécurisation, Planification, J, J+1) | sécurisation files 1-3.
  */
-export function buildSuiviColumns({ data, sections, editableSections, rawSources, rawHidden, onSave, onOpen, flags, assignee }: SuiviColumnsOptions): GridColumn<DossierRow>[] {
-  const columns: GridColumn<DossierRow>[] = [dateColumn(), idColumn(onOpen)];
+export function buildSuiviColumns({
+  data,
+  sections,
+  editableSections,
+  rawSources,
+  rawHidden,
+  onSave,
+  onOpen,
+  flags,
+  assignees = [],
+  canEditRow,
+}: SuiviColumnsOptions): GridColumn<DossierRow>[] {
+  const columns: GridColumn<DossierRow>[] = [dateColumn(), idColumn(onOpen), delayColumn()];
+  if (sections.includes("PLANIFICATION") || sections.includes("SECURISATION")) columns.push(routeColumn());
   if (flags) columns.push(flagsColumn(flags));
-  if (assignee) columns.push(assigneeColumn(assignee));
+  for (const a of assignees) columns.push(assigneeColumn(a));
 
-  for (const sc of data?.sourceColumns ?? []) {
-    if (rawSources.includes(sc.source) && !isIdExterneColumn(sc.label)) {
-      columns.push(rawColumn(sc, { groupId: sourceGroup(sc.source), defaultHidden: rawHidden }));
+  const raw = (sources: DataSource[]) => {
+    for (const sc of data?.sourceColumns ?? []) {
+      if (rawSources.includes(sc.source) && sources.includes(sc.source) && !isIdExterneColumn(sc.label)) {
+        columns.push(rawColumn(sc, { groupId: sourceGroup(sc.source), defaultHidden: rawHidden }));
+      }
     }
-  }
+  };
+  raw(rawSources.filter((s) => !LAST_SOURCES.includes(s)));
 
   for (const section of SECTIONS) {
     const full = sections.includes(section);
-    const fields = data?.fields.filter((f) => f.section === section && (full || f.published)) ?? [];
-    for (const field of fields) {
+    for (const field of groupFields(data, section, sections)) {
       const select = field.type === "SELECT";
       columns.push({
         key: `field:${field.id}`,
@@ -58,13 +105,15 @@ export function buildSuiviColumns({ data, sections, editableSections, rawSources
           <ValuePicker
             field={field}
             value={row.values[field.id]}
-            editable={full && editableSections.includes(section)}
+            editable={full && editableSections.includes(effectiveSection(field, row)) && (canEditRow?.(row) ?? true)}
             onSave={(value) => onSave(row.id, field.id, value)}
           />
         ),
       });
     }
   }
+
+  raw(LAST_SOURCES);
   return columns;
 }
 
@@ -75,15 +124,17 @@ export function buildSuiviGroups(
   stats: DossierStats | null,
   rawSources: DataSource[],
 ): GridGroup[] {
-  const groups: GridGroup[] = rawSources.map((source) => {
-    const id = sourceGroup(source);
-    const title = source === "MAIN" ? "Données importées" : SOURCE_LABELS[source];
+  const source = (s: DataSource): GridGroup => {
+    const id = sourceGroup(s);
+    const title = s === "MAIN" ? "Données importées" : SOURCE_LABELS[s];
     return { id, title, label: title, headerClassName: SECTION_THEME[id].header, subHeaderClassName: SECTION_THEME[id].sub };
-  });
+  };
+  const groups: GridGroup[] = rawSources.filter((s) => !LAST_SOURCES.includes(s)).map(source);
 
   for (const section of SECTIONS) {
+    if (section === "PLANIFICATION" && !sections.includes(section)) continue;
     const full = sections.includes(section);
-    const stat = stats?.sections.find((s) => s.section === section);
+    const stat = section === "PLANIFICATION" ? undefined : stats?.sections.find((s) => s.section === section);
     const editable = full && editableSections.includes(section);
     groups.push({
       id: section,
@@ -107,5 +158,7 @@ export function buildSuiviGroups(
       ),
     });
   }
+
+  groups.push(...rawSources.filter((s) => LAST_SOURCES.includes(s)).map(source));
   return groups;
 }

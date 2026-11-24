@@ -33,15 +33,20 @@ public class DossierValueService {
     private final DossierFieldValueRepository valueRepository;
     private final DossierEventRepository eventRepository;
     private final AppUserRepository userRepository;
+    private final DossierProgressService progressService;
 
     @Transactional
     public FieldValueResponse updateValue(Long dossierId, Long fieldId, String rawValue, CurrentUser user) {
         Dossier dossier = dossierRepository.findById(dossierId).orElseThrow(() -> ApiException.notFound("Dossier introuvable"));
         AppField field = fieldRepository.findById(fieldId).orElseThrow(() -> ApiException.notFound("Champ introuvable"));
 
-        if (!user.role().canEdit(field.getSection())) {
-            throw ApiException.forbidden("Vous ne pouvez pas modifier la section " + field.getSection().getLabel());
+        FieldSection section = DossierProgressService.effectiveSection(field, dossier);
+        if (!user.role().canEdit(section)) {
+            throw ApiException.forbidden(section == FieldSection.PLANIFICATION
+                    ? "Ce dossier n'est pas planifié : ses colonnes J-1 sont traitées par la planification"
+                    : "Vous ne pouvez pas modifier la section " + section.getLabel());
         }
+        requireAssigned(dossier, user);
         if (!field.isActive()) {
             throw ApiException.badRequest("Ce champ est désactivé");
         }
@@ -58,10 +63,12 @@ public class DossierValueService {
         Map<Long, String> autoFilled = new LinkedHashMap<>();
         if (!Objects.equals(old, value)) {
             write(dossier, field, existing, value, user.username());
-            record(dossier, field, old, value, actor, null);
+            record(dossier, field, section, old, value, actor, null);
             if (value != null) {
-                autoFill(dossier, field, user.username(), actor, autoFilled);
+                autoFill(dossier, field, section, user.username(), actor, autoFilled);
             }
+            valueRepository.flush();
+            progressService.refresh(dossier);
         }
         LocalDateTime now = LocalDateTime.now();
         return new FieldValueResponse(dossierId, fieldId, value, value == null ? null : user.username(), now, autoFilled);
@@ -83,11 +90,19 @@ public class DossierValueService {
         }
     }
 
-    /** Fills the empty DATE (today) and USER (current user) columns of the section. */
-    private void autoFill(Dossier dossier, AppField changed, String username, String actor, Map<Long, String> autoFilled) {
+    /** A pilot only edits the dossiers dispatched to him (his team's assignment). */
+    static void requireAssigned(Dossier dossier, CurrentUser user) {
+        Team team = user.role().team();
+        if (team != null && !user.username().equals(team.assignee(dossier))) {
+            throw ApiException.forbidden("Ce dossier ne vous est pas attribué");
+        }
+    }
+
+    /** Fills the empty DATE (today) and USER (current user) columns of the same section. */
+    private void autoFill(Dossier dossier, AppField changed, FieldSection section, String username, String actor, Map<Long, String> autoFilled) {
         for (AppField f : fieldRepository.findAll()) {
             boolean auto = f.getType() == FieldType.DATE || f.getType() == FieldType.USER;
-            if (!auto || !f.isActive() || f.getSection() != changed.getSection() || f.getId().equals(changed.getId())) {
+            if (!auto || !f.isActive() || DossierProgressService.effectiveSection(f, dossier) != section || f.getId().equals(changed.getId())) {
                 continue;
             }
             Optional<DossierFieldValue> current = valueRepository.findByDossierIdAndFieldId(dossier.getId(), f.getId());
@@ -96,7 +111,7 @@ public class DossierValueService {
             }
             String value = f.getType() == FieldType.DATE ? LocalDate.now().toString() : actor;
             write(dossier, f, current, value, username);
-            record(dossier, f, null, value, actor, "Rempli automatiquement");
+            record(dossier, f, section, null, value, actor, "Rempli automatiquement");
             autoFilled.put(f.getId(), value);
         }
     }
@@ -113,11 +128,11 @@ public class DossierValueService {
         valueRepository.save(entity);
     }
 
-    private void record(Dossier dossier, AppField field, String old, String value, String actor, String detail) {
+    private void record(Dossier dossier, AppField field, FieldSection section, String old, String value, String actor, String detail) {
         eventRepository.save(DossierEvent.builder()
                 .dossier(dossier)
                 .type(value == null ? EventType.VALUE_CLEARED : EventType.VALUE_SET)
-                .section(field.getSection())
+                .section(section)
                 .fieldLabel(field.getLabel())
                 .oldValue(old)
                 .newValue(value)

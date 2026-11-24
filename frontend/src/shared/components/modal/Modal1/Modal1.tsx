@@ -22,9 +22,14 @@ const SIZES = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl" };
 export function Modal1({ open, onClose, title, description, icon, children, footer, size = "md" }: Modal1Props) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // capture phase: Escape closes the modal only, not the drawer it was opened from
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onClose]);
 
   if (typeof document === "undefined") return null;

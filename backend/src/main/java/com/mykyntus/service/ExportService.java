@@ -102,7 +102,14 @@ public class ExportService {
             case ColumnKey.DateKey ignored -> d.getDossierDate() == null ? null : d.getDossierDate().format(DATE);
             case ColumnKey.IdKey ignored -> d.getIdExterne();
             case ColumnKey.FlagsKey ignored -> String.join(", ", FlagService.decode(d.getFlags()));
-            case ColumnKey.AssigneeKey ignored -> d.getAssignedTo();
+            case ColumnKey.AssigneeKey(com.mykyntus.entity.Team team) -> team.assignee(d);
+            case ColumnKey.DelayKey ignored -> switch (DossierProgressService.delay(d)) {
+                case DONE -> "Clôturé";
+                case ON_TIME -> "Dans les délais";
+                case SOON -> "Bientôt en retard";
+                case LATE -> "En retard";
+            };
+            case ColumnKey.RouteKey ignored -> d.isRoutedPlanif() ? "Planification" : "Sécurisation";
             case ColumnKey.StatusKey(com.mykyntus.entity.FieldSection section) -> status(values, section);
             case ColumnKey.RawKey(String column) -> d.getRawData().get(column);
             case ColumnKey.FieldKey(Long fieldId) -> values.get(fieldId);

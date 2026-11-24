@@ -9,6 +9,8 @@ interface Options {
   initialSearch?: string;
   initialFilters?: ColumnFilter[];
   pageSize?: number;
+  /** The dossiers of this pilot come first. */
+  pin?: DossierCriteria["pin"];
 }
 
 interface TableState {
@@ -26,8 +28,9 @@ const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur de cha
  * State of a dossier table: criteria (date, search, column filters, sort, page),
  * server data, counters and value saving.
  */
-export function useDossierGrid({ initialDate, initialSearch = "", initialFilters = [], pageSize = 50 }: Options) {
+export function useDossierGrid({ initialDate, initialSearch = "", initialFilters = [], pageSize = 50, pin = null }: Options) {
   const [criteria, setCriteria] = useState<DossierCriteria>({
+    pin,
     date: initialDate,
     search: initialSearch,
     filters: initialFilters,
@@ -124,6 +127,12 @@ export function useDossierGrid({ initialDate, initialSearch = "", initialFilters
         const values = { ...row.values, ...res.autoFilled };
         if (res.value === null) delete values[fieldId];
         else values[fieldId] = res.value;
+        // "Cellule plani" decides who works the J-1 columns (same rule as the server)
+        const field = prev.data?.fields.find((f) => f.id === fieldId);
+        if (field?.code === "j1_cellule_plani") {
+          const v = (res.value ?? "").normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
+          return { ...row, values, planification: v !== "" && v !== "planifie" };
+        }
         return { ...row, values };
       });
       return { ...prev, data: { ...prev.data, rows: { ...prev.data.rows, content } } };

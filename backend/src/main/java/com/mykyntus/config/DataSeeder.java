@@ -1,5 +1,10 @@
 package com.mykyntus.config;
 
+import com.mykyntus.service.DossierProgressService;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.mykyntus.entity.*;
 import com.mykyntus.repository.AppFieldRepository;
 import com.mykyntus.repository.AppUserRepository;
@@ -42,8 +47,67 @@ public class DataSeeder implements ApplicationRunner {
         ensureUser("admin.secu", "secu1234", "Admin sécurisation", Role.ADMIN_SECURISATION);
         ensureUser("pilote.secu", "pilote123", "Pilote sécurisation", Role.PILOTE_SECURISATION);
         ensureUser("pilote.j", "pilote123", "Pilote J", Role.PILOTE_J);
+        ensureUser("a.guengombe", "agent123", "GUENGOMBE Abed Prince", Role.PILOTE_J);
+        ensureUser("i.labyied", "plani123", "Islam LABYIED", Role.PILOTE_PLANIFICATION);
         seedMainFields();
         seedSecurisationFields();
+        mergeJ1IntoSecurisation();
+        seedMailObjects();
+    }
+
+    /**
+     * J-1 merged into Sécurisation: its columns move to the Sécurisation section ("Cellule plani" first),
+     * every one but "Cellule plani" goes to the planification team when the dossier is not "Planifié".
+     * "Cellule sécurisation", "Département" and "Pilote" (already given by the dispatch) are deactivated,
+     * their values are kept. Runs once (while "Cellule plani" is still in J-1).
+     */
+    private void mergeJ1IntoSecurisation() {
+        Map<String, AppField> byCode = fieldRepository.findAll().stream().collect(Collectors.toMap(AppField::getCode, f -> f));
+        AppField plani = byCode.get(DossierProgressService.CELLULE_PLANI);
+        if (plani == null || plani.getSection() != FieldSection.J_MINUS_1) {
+            return;
+        }
+        for (String code : List.of("sec_departement", "sec_pilote", "j1_cellule_securisation")) {
+            AppField f = byCode.get(code);
+            if (f != null) {
+                f.setActive(false);
+            }
+        }
+        int position = fieldRepository.findMaxPosition(FieldSection.SECURISATION);
+        List<AppField> j1 = byCode.values().stream()
+                .filter(f -> f.getSection() == FieldSection.J_MINUS_1)
+                .sorted(Comparator.comparingInt(AppField::getPosition).thenComparing(AppField::getId))
+                .toList();
+        for (AppField f : j1) {
+            f.setSection(FieldSection.SECURISATION);
+            f.setPosition(++position);
+            f.setPlanification(!f.getCode().equals(DossierProgressService.CELLULE_PLANI));
+        }
+        fieldRepository.saveAll(byCode.values());
+        log.info("J-1 merged into Sécurisation ({} columns)", j1.size());
+    }
+
+    /** "Objet" text column right after every mail column. */
+    private void seedMailObjects() {
+        for (String mailCode : List.of("j1_mail_teams", "j1_mail", "j_mail_teams")) {
+            String code = mailCode + DossierProgressService.OBJET_SUFFIX;
+            if (fieldRepository.existsByCode(code)) {
+                continue;
+            }
+            AppField mail = fieldRepository.findAll().stream().filter(f -> f.getCode().equals(mailCode)).findFirst().orElse(null);
+            if (mail == null) {
+                continue;
+            }
+            // room right after the mail column
+            List<AppField> after = fieldRepository.findAll().stream()
+                    .filter(f -> f.getSection() == mail.getSection() && f.getPosition() > mail.getPosition())
+                    .toList();
+            after.forEach(f -> f.setPosition(f.getPosition() + 1));
+            fieldRepository.saveAll(after);
+            AppField objet = field(code, "Objet (" + mail.getLabel() + ")", mail.getSection(), FieldType.TEXT, mail.getPosition() + 1, List.of());
+            objet.setPlanification(mail.isPlanification());
+            fieldRepository.save(objet);
+        }
     }
 
     private void ensureUser(String username, String password, String fullName, Role role) {

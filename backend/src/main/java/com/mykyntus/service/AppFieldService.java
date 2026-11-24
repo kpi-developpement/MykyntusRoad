@@ -35,6 +35,7 @@ public class AppFieldService {
     private final AppFieldRepository fieldRepository;
     private final FieldOptionRepository optionRepository;
     private final DossierFieldValueRepository valueRepository;
+    private final DossierProgressService progressService;
 
     @Transactional(readOnly = true)
     public List<AppFieldResponse> findAll() {
@@ -56,8 +57,11 @@ public class AppFieldService {
                         : fieldRepository.findMaxPosition(request.section()) + 1)
                 .active(request.active() == null || request.active())
                 .published(Boolean.TRUE.equals(request.published()))
+                .planification(request.section() == FieldSection.SECURISATION && Boolean.TRUE.equals(request.planification()))
                 .build();
-        return DtoMapper.toField(fieldRepository.save(field), false);
+        AppFieldResponse saved = DtoMapper.toField(fieldRepository.save(field), false);
+        progressService.refreshAll();
+        return saved;
     }
 
     @Transactional
@@ -76,6 +80,11 @@ public class AppFieldService {
         if (request.published() != null) {
             field.setPublished(request.published());
         }
+        if (request.planification() != null) {
+            field.setPlanification(request.section() == FieldSection.SECURISATION && request.planification());
+        }
+        fieldRepository.flush();
+        progressService.refreshAll();
         return DtoMapper.toField(field, false);
     }
 
@@ -84,6 +93,8 @@ public class AppFieldService {
         AppField field = getField(id, user);
         valueRepository.deleteByFieldId(id);
         fieldRepository.delete(field);
+        fieldRepository.flush();
+        progressService.refreshAll();
     }
 
     @Transactional

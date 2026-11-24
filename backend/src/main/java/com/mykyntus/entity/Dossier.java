@@ -70,7 +70,40 @@ public class Dossier {
 
     private LocalDateTime assignedAt;
 
+    /** Username of the planification agent (dossiers not "Planifié"). */
+    @Column(length = 100)
+    private String assignedPlanif;
+
+    private LocalDateTime assignedPlanifAt;
+
+    /** Username of the J / J+1 agent. */
+    @Column(length = 100)
+    private String assignedJ;
+
+    private LocalDateTime assignedJAt;
+
+    /** "Cellule plani" filled with something else than "Planifié": the J-1 columns go to the planification team. */
+    private Boolean routedPlanif;
+
+    /** In the admin's file but in no sécurisation file: sécurisation columns set to N/A. */
+    private Boolean horsSecu;
+
+    /** Every column that applies to the dossier is filled (closes the dossier, see DossierProgressService). */
+    private Boolean complete;
+
     public boolean isFlagsManual() {
         return Boolean.TRUE.equals(flagsManual);
+    }
+
+    public boolean isRoutedPlanif() {
+        return Boolean.TRUE.equals(routedPlanif);
+    }
+
+    public boolean isHorsSecu() {
+        return Boolean.TRUE.equals(horsSecu);
+    }
+
+    public boolean isComplete() {
+        return Boolean.TRUE.equals(complete);
     }
 }
