@@ -51,6 +51,7 @@ public class ImportService {
     private final FlagService flagService;
     private final SecuCrossCheckService crossCheckService;
     private final DossierProgressService progressService;
+    private final com.mykyntus.repository.ImportRowRepository importRowRepository;
 
     /** Main daily file. @param forcedDate optional date applied to every dossier of the file */
     @Transactional
@@ -148,17 +149,22 @@ public class ImportService {
 
             List<Dossier> toSave = new ArrayList<>(chunk.size());
             List<Change> changes = new ArrayList<>(chunk.size());
+            List<ImportRow> importRows = new ArrayList<>(chunk.size());
             for (String id : chunk) {
                 ParsedSheet.ParsedRow row = rowsById.get(id);
                 LocalDate date = forcedDate != null ? forcedDate : row.date();
                 Dossier dossier = existing.get(id);
                 boolean isNew = dossier == null;
+                LocalDate previousDate = null;
                 if (isNew) {
                     dossier = Dossier.builder().idExterne(id).dossierDate(date != null ? date : today).build();
                     created++;
                 } else {
                     // only the main file (or a date forced on the global file) decides the dossier date
                     if ((source == DataSource.MAIN || (source == DataSource.SEC_GLOBAL && forcedDate != null)) && date != null) {
+                        if (!date.equals(dossier.getDossierDate())) {
+                            previousDate = dossier.getDossierDate();
+                        }
                         dossier.setDossierDate(date);
                     }
                     dossier.setUpdatedAt(LocalDateTime.now());
@@ -172,8 +178,11 @@ public class ImportService {
                 dossier.setLastImport(batch);
                 toSave.add(dossier);
                 changes.add(new Change(dossier, isNew, diff.lines(), diff.modified()));
+                importRows.add(ImportRow.builder().batch(batch).dossier(dossier).created(isNew)
+                        .previousDate(previousDate).previous(isNew ? null : ImportRow.encode(diff.previous())).build());
             }
             dossierRepository.saveAll(toSave);
+            importRowRepository.saveAll(importRows);
             // admin's file crossed with the sécurisation files (N/A when absent), then closed / routed state
             crossCheckService.check(toSave, source);
             progressService.refresh(toSave);
@@ -197,12 +206,14 @@ public class ImportService {
     private record Change(Dossier dossier, boolean created, List<String> diff, boolean modified) {
     }
 
-    private record Diff(List<String> lines, boolean modified) {
+    /** @param previous replaced values: key -> old value (null = absent before) */
+    private record Diff(List<String> lines, boolean modified, Map<String, String> previous) {
     }
 
     /** Writes the file values in the dossier data; returns "Column : old → new" for every change. */
     private Diff applyValues(Map<String, String> raw, String prefix, Map<String, String> values) {
         List<String> lines = new ArrayList<>();
+        Map<String, String> previous = new LinkedHashMap<>();
         boolean modified = false;
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String key = prefix + entry.getKey();
@@ -211,6 +222,7 @@ public class ImportService {
             if (Objects.equals(old, value)) {
                 continue;
             }
+            previous.put(key, old);
             if (value == null) {
                 raw.remove(key);
             } else {
@@ -219,7 +231,7 @@ public class ImportService {
             modified |= old != null;
             lines.add(entry.getKey() + " : " + (old == null ? "(vide)" : old) + " → " + (value == null ? "(vide)" : value));
         }
-        return new Diff(lines, modified);
+        return new Diff(lines, modified, previous);
     }
 
     private DossierEvent importEvent(Change change, DataSource source, String fileName, String username) {

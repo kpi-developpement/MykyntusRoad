@@ -133,10 +133,10 @@ function SidebarPanel({ open, onNavigate }: { open: boolean; onNavigate?: () => 
     <div className="relative flex h-full flex-col text-white">
       {/* background (no blur filters) */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,#080d2e_0%,#101a63_48%,#1a2a9c_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(6_10_34/0.92)_0%,rgb(8_13_44/0.88)_55%,rgb(12_18_60/0.9)_100%)]" />
         <div className="grid-lines absolute inset-0 opacity-50 [mask-image:linear-gradient(to_bottom,black,transparent_60%)]" />
-        <div className="absolute -top-32 -left-32 size-96 bg-[radial-gradient(circle,rgb(59_102_245/0.5),transparent_62%)]" />
-        <div className="absolute -right-40 bottom-[-6rem] size-96 bg-[radial-gradient(circle,rgb(56_189_248/0.2),transparent_62%)]" />
+        <div className="absolute -top-32 -left-32 size-96 bg-[radial-gradient(circle,rgb(34_211_238/0.16),transparent_62%)]" />
+        <div className="absolute -right-40 bottom-[-6rem] size-96 bg-[radial-gradient(circle,rgb(139_92_246/0.2),transparent_62%)]" />
       </div>
       <span aria-hidden className="edge-beam" />
 
@@ -205,7 +205,7 @@ function SidebarPanel({ open, onNavigate }: { open: boolean; onNavigate?: () => 
                       aria-label={item.label}
                       className={cn(
                         "group relative flex h-11 w-full items-center gap-3 rounded-xl pl-[20.5px] text-sm font-medium transition-colors duration-200",
-                        active ? "text-slate-900" : "text-brand-100/75 hover:text-white",
+                        active ? "text-white" : "text-slate-400 hover:text-white",
                       )}
                     >
                       {/* hover plate: square on the rail, full row when open */}
@@ -219,22 +219,22 @@ function SidebarPanel({ open, onNavigate }: { open: boolean; onNavigate?: () => 
                       {active && (
                         <motion.span
                           layoutId="sidebar-active"
-                          className="absolute inset-0 rounded-xl bg-linear-to-r from-white to-brand-50 shadow-[inset_0_1px_0_#fff,0_12px_30px_-12px_rgb(56_189_248/0.7)] transition-[clip-path] duration-300 ease-out-expo"
+                          className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/[0.16] via-blue-500/[0.1] to-violet-500/[0.08] shadow-[inset_0_1px_0_rgb(255_255_255/0.08),inset_0_0_0_1px_rgb(103_232_249/0.22),0_0_28px_-8px_rgb(34_211_238/0.65)] transition-[clip-path] duration-300 ease-out-expo"
                           style={{ clipPath: open ? "inset(0 0 0 0 round 12px)" : "inset(0 calc(100% - 54px) 0 6px round 12px)" }}
                           transition={{ type: "spring", stiffness: 460, damping: 38 }}
                         >
-                          <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-sky-400 shadow-[0_0_12px_#38bdf8]" />
+                          <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-linear-to-b from-cyan-300 to-violet-400 shadow-[0_0_14px_#22d3ee]" />
                         </motion.span>
                       )}
                       <Icon
                         className={cn(
                           "relative z-10 size-[19px] shrink-0 transition-transform duration-300 ease-out-expo",
-                          active ? "text-brand-600" : "group-hover:scale-110",
+                          active ? "text-cyan-300 drop-shadow-[0_0_6px_rgb(34_211_238/0.8)]" : "group-hover:scale-110",
                         )}
                       />
                       <span className={cn("relative z-10 truncate whitespace-nowrap", reveal(open, 75))}>{item.label}</span>
                       {active && (
-                        <span className={cn("relative z-10 mr-3 ml-auto font-mono text-[9px] tracking-[0.18em] text-brand-500 uppercase", reveal(open, 75))}>
+                        <span className={cn("relative z-10 mr-3 ml-auto font-mono text-[9px] tracking-[0.18em] text-cyan-300/80 uppercase", reveal(open, 75))}>
                           actif
                         </span>
                       )}
@@ -249,8 +249,8 @@ function SidebarPanel({ open, onNavigate }: { open: boolean; onNavigate?: () => 
 
       {/* footer */}
       <div className="relative shrink-0 px-4 pb-4">
-        <div className={cn("mb-3 rounded-2xl bg-linear-to-br from-sky-400/45 via-white/10 to-brand-400/35 p-px", reveal(open, 100))}>
-          <div className="rounded-[15px] bg-[linear-gradient(160deg,#121b5e,#0c1446)] p-4">
+        <div className={cn("mb-3 rounded-2xl bg-linear-to-br from-cyan-400/40 via-white/5 to-violet-400/35 p-px", reveal(open, 100))}>
+          <div className="rounded-[15px] bg-[linear-gradient(160deg,#0b1236,#070b24)] p-4">
             <div className="flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.18em] text-sky-300 uppercase">
               <Sparkles className="size-3.5" />
               Astuce

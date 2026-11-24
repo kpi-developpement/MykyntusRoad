@@ -4,6 +4,7 @@ import { CloudUpload, ShieldCheck, Shuffle } from "lucide-react";
 import { LinkButton } from "@/shared/components/button/LinkButton/LinkButton";
 import { MineToggle } from "@/shared/components/dossier/MineToggle/MineToggle";
 import { useAuth } from "@/shared/context/AuthContext";
+import { useUrlCriteria } from "@/shared/hooks/useUrlCriteria";
 import { SuiviView } from "@/shared/pages/SuiviView/SuiviView";
 import { SEC_SOURCES, SECURISATION_SECTIONS } from "@/shared/types";
 import { tomorrow } from "@/shared/utils/date";
@@ -17,6 +18,7 @@ export function SecWorkspacePage({ canImport = false }: { canImport?: boolean })
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN_SECURISATION";
   const isPilot = user?.role === "PILOTE_SECURISATION";
+  const url = useUrlCriteria(tomorrow());
 
   const adminActions = canImport ? (
     <>
@@ -40,7 +42,9 @@ export function SecWorkspacePage({ canImport = false }: { canImport?: boolean })
           : "Dossiers du lendemain avec leurs drapeaux et leur pilote. Changez un pilote d'un clic, ou répartissez tout depuis le dispatch."
       }
       icon={<ShieldCheck />}
-      initialDate={tomorrow()}
+      key={url.key}
+      initialDate={url.date}
+      initialFilters={url.filters}
       sections={SECURISATION_SECTIONS}
       rawSources={SEC_SOURCES}
       rawHidden={false}

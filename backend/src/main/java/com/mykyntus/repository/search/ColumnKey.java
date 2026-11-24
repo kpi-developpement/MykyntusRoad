@@ -26,6 +26,7 @@ public sealed interface ColumnKey {
     String FLAGS = "flags";
     String ASSIGNEE = "assignee";
     String DELAY = "delay";
+    String BATCH = "batch";
     String ROUTE = "route";
     String STATUS_PREFIX = "status:";
 
@@ -49,6 +50,10 @@ public sealed interface ColumnKey {
 
     /** Delay of the dossier (see DossierProgressService.Delay). */
     record DelayKey() implements ColumnKey {
+    }
+
+    /** Dossiers of imported files (values = file ids). */
+    record BatchKey() implements ColumnKey {
     }
 
     /** Team working the J-1 columns: PLANIFICATION or SECURISATION. */
@@ -77,6 +82,9 @@ public sealed interface ColumnKey {
         }
         if (key.startsWith(ASSIGNEE + ":")) {
             return new AssigneeKey(com.mykyntus.entity.Team.parse(key.substring(ASSIGNEE.length() + 1)));
+        }
+        if (BATCH.equals(key)) {
+            return new BatchKey();
         }
         if (DELAY.equals(key)) {
             return new DelayKey();

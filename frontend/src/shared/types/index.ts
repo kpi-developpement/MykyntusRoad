@@ -271,7 +271,7 @@ export interface SecSource {
   visible: number;
 }
 
-export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED" | "FLAGS_CHANGED" | "ASSIGNED";
+export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED" | "FLAGS_CHANGED" | "ASSIGNED" | "IMPORT_CANCELLED";
 export type StageStatus = "DONE" | "CURRENT" | "PENDING";
 
 export interface StageField {
@@ -399,4 +399,73 @@ export interface DispatchSummary {
 export interface DispatchResult {
   moved: number;
   summary: DispatchSummary | null;
+}
+
+// ------------------------------------------------------------------ dashboard / files
+
+/** Dominant state of a day: red, orange, blue (on time), green (everything closed). */
+export type DayStatus = "LATE" | "SOON" | "ON_TIME" | "DONE" | "EMPTY";
+
+export interface DayStat {
+  date: string;
+  total: number;
+  done: number;
+  late: number;
+  soon: number;
+  onTime: number;
+  horsSecu: number;
+  planification: number;
+  /** Not closed and without sécurisation pilot. */
+  unassignedSecu: number;
+  /** Not closed and without J agent. */
+  unassignedJ: number;
+  status: DayStatus;
+}
+
+/** An imported file with the state of its dossiers today. */
+export interface BatchSummary {
+  id: number;
+  fileName: string;
+  source: DataSource;
+  importedBy: string;
+  importedAt: string;
+  totalRows: number;
+  createdRows: number;
+  updatedRows: number;
+  skippedRows: number;
+  rolledBack: boolean;
+  rolledBackAt: string | null;
+  rolledBackBy: string | null;
+  /** The connected admin can cancel it. */
+  canRollback: boolean;
+  dossiers: number;
+  done: number;
+  late: number;
+  soon: number;
+  onTime: number;
+  /** Not closed and without pilot in the team of the file. */
+  unassigned: number;
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+export interface RollbackPreview {
+  id: number;
+  fileName: string;
+  /** Dossiers created by the file, removed. */
+  deleted: number;
+  /** Dossiers whose previous values come back. */
+  restored: number;
+  /** Left as is (a later file of the same kind wins). */
+  kept: number;
+  /** Removed dossiers on which someone already worked. */
+  worked: number;
+}
+
+/** New work of the connected pilot. */
+export interface PilotWork {
+  team: Team | null;
+  open: number;
+  fresh: number;
+  latest: string | null;
 }

@@ -110,6 +110,7 @@ public class ExportService {
                 case LATE -> "En retard";
             };
             case ColumnKey.RouteKey ignored -> d.isRoutedPlanif() ? "Planification" : "Sécurisation";
+            case ColumnKey.BatchKey ignored -> null;
             case ColumnKey.StatusKey(com.mykyntus.entity.FieldSection section) -> status(values, section);
             case ColumnKey.RawKey(String column) -> d.getRawData().get(column);
             case ColumnKey.FieldKey(Long fieldId) -> values.get(fieldId);

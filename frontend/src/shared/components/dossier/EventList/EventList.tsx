@@ -1,4 +1,4 @@
-import { CirclePlus, Eraser, FileInput, Flag, PencilLine, RefreshCw, UserRoundCheck, type LucideIcon } from "lucide-react";
+import { CirclePlus, Eraser, Undo2, FileInput, Flag, PencilLine, RefreshCw, UserRoundCheck, type LucideIcon } from "lucide-react";
 import type { EventType, TimelineEvent } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { formatDateTime, formatRelative } from "../../../utils/date";
@@ -12,6 +12,7 @@ const KIND: Record<EventType, { icon: LucideIcon; tone: string; title: string }>
   VALUE_SET: { icon: PencilLine, tone: "bg-brand-50 text-brand-600 ring-brand-200", title: "Valeur saisie" },
   VALUE_CLEARED: { icon: Eraser, tone: "bg-rose-50 text-rose-600 ring-rose-200", title: "Valeur effacée" },
   FLAGS_CHANGED: { icon: Flag, tone: "bg-violet-50 text-violet-600 ring-violet-200", title: "Drapeaux" },
+  IMPORT_CANCELLED: { icon: Undo2, tone: "bg-rose-50 text-rose-600 ring-rose-200", title: "Import annulé" },
   ASSIGNED: { icon: UserRoundCheck, tone: "bg-sky-50 text-sky-700 ring-sky-200", title: "Dispatch" },
 };
 

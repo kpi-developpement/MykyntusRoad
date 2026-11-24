@@ -13,6 +13,8 @@ type AdminTeam = "PLANIFICATION" | "J";
 export function DispatchPage() {
   const params = useSearchParams();
   const [team, setTeam] = useState<AdminTeam>(params.get("team") === "PLANIFICATION" ? "PLANIFICATION" : "J");
+  const batch = params.get("batch") ? Number(params.get("batch")) : null;
+  const date = params.get("date");
 
   const toggle = (
     <SegmentedControl<AdminTeam>
@@ -37,7 +39,8 @@ export function DispatchPage() {
           : "Seuls les dossiers dont la « Cellule plani » n'est pas « Planifié » sont répartis entre les agents planification choisis."
       }
       pilotesHref="/admin/utilisateurs"
-      initialDate={team === "J" ? today() : tomorrow()}
+      initialDate={date ?? (batch ? "" : team === "J" ? today() : tomorrow())}
+      initialBatch={batch}
       headerExtra={toggle}
     />
   );

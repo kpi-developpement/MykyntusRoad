@@ -15,5 +15,7 @@ public enum EventType {
     /** Flags of the dossier changed by hand (or reset to the automatic ones). */
     FLAGS_CHANGED,
     /** Dossier assigned to a sécurisation pilot (dispatch) or unassigned. */
-    ASSIGNED
+    ASSIGNED,
+    /** The values brought by a file were removed (import cancelled). */
+    IMPORT_CANCELLED
 }

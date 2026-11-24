@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/imports/**", "/api/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/sec/**").hasRole("ADMIN_SECURISATION")
+                        // file rights (admin's file / sécurisation files) are checked in BatchService
+                        .requestMatchers("/api/batches/**").hasAnyRole("ADMIN", "ADMIN_SECURISATION")
                         .requestMatchers(HttpMethod.GET, "/api/flags/**").authenticated()
                         .requestMatchers("/api/flags/**").hasAnyRole("ADMIN", "ADMIN_SECURISATION", "PILOTE_SECURISATION")
                         // section / source level rights are checked in the services

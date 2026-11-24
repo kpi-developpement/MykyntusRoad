@@ -88,6 +88,9 @@ public class DossierSearchRepository {
         if (key instanceof ColumnKey.DelayKey) {
             return enumFacets(request, keyValue, List.of("LATE", "SOON", "ON_TIME", "DONE"), this::delayPredicate);
         }
+        if (key instanceof ColumnKey.BatchKey) {
+            return batchFacets(request, keyValue);
+        }
         if (key instanceof ColumnKey.RouteKey) {
             return enumFacets(request, keyValue, List.of("PLANIFICATION", "SECURISATION"), this::routePredicate);
         }
@@ -147,6 +150,7 @@ public class DossierSearchRepository {
             case ColumnKey.StatusKey ignored -> throw new IllegalStateException("handled by statusFacets");
             case ColumnKey.DelayKey ignored -> throw new IllegalStateException("handled by enumFacets");
             case ColumnKey.RouteKey ignored -> throw new IllegalStateException("handled by enumFacets");
+            case ColumnKey.BatchKey ignored -> throw new IllegalStateException("handled by batchFacets");
             case ColumnKey.FieldKey(Long fieldId) -> {
                 Root<DossierFieldValue> v = cq.from(DossierFieldValue.class);
                 Join<DossierFieldValue, Dossier> d = v.join("dossier");
@@ -262,7 +266,8 @@ public class DossierSearchRepository {
         }
         boolean hasCondition = op.needsText() ? text != null
                 : op != FilterOp.BETWEEN || TextUtils.trimToNull(filter.from()) != null || TextUtils.trimToNull(filter.to()) != null;
-        boolean enumOnly = key instanceof ColumnKey.StatusKey || key instanceof ColumnKey.DelayKey || key instanceof ColumnKey.RouteKey;
+        boolean enumOnly = key instanceof ColumnKey.StatusKey || key instanceof ColumnKey.DelayKey || key instanceof ColumnKey.RouteKey
+                || key instanceof ColumnKey.BatchKey;
         if (hasCondition && !enumOnly) {
             Predicate p = conditionPredicate(cb, query, d, key, op, text, parseDate(filter.from()), parseDate(filter.to()));
             if (p != null) {
@@ -311,6 +316,19 @@ public class DossierSearchRepository {
             }
             case ColumnKey.DelayKey ignored -> cb.or(values.stream().map(v -> delayPredicate(cb, d, v)).toArray(Predicate[]::new));
             case ColumnKey.RouteKey ignored -> cb.or(values.stream().map(v -> routePredicate(cb, d, v)).toArray(Predicate[]::new));
+            case ColumnKey.BatchKey ignored -> {
+                List<Long> batchIds = values.stream().map(v -> {
+                    try {
+                        return Long.parseLong(v.trim());
+                    } catch (NumberFormatException e) {
+                        throw com.mykyntus.exception.ApiException.badRequest("Fichier inconnu : " + v);
+                    }
+                }).toList();
+                Subquery<Long> sq = query.subquery(Long.class);
+                Root<com.mykyntus.entity.ImportRow> r = sq.from(com.mykyntus.entity.ImportRow.class);
+                sq.select(r.get("dossier").get("id")).where(r.get("batch").get("id").in(batchIds));
+                yield batchIds.isEmpty() ? cb.disjunction() : id.in(sq);
+            }
             case ColumnKey.RawKey(String column) -> {
                 List<Predicate> or = new ArrayList<>();
                 if (!values.isEmpty()) {
@@ -361,6 +379,7 @@ public class DossierSearchRepository {
             case ColumnKey.StatusKey ignored -> null;
             case ColumnKey.DelayKey ignored -> null;
             case ColumnKey.RouteKey ignored -> null;
+            case ColumnKey.BatchKey ignored -> null;
             case ColumnKey.RawKey(String column) ->
                     id.in(rawIds(cb, query, column, r -> textCondition(cb, r.value(), positive, text, from, to, true)));
             case ColumnKey.FieldKey(Long fieldId) ->
@@ -520,6 +539,23 @@ public class DossierSearchRepository {
         };
     }
 
+    /** Files of the matching dossiers ("id" = file id, label shown by the UI from the files list). */
+    private FacetResult batchFacets(DossierSearchRequest request, String keyValue) {
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Tuple> cq = cb.createTupleQuery();
+        Root<com.mykyntus.entity.ImportRow> r = cq.from(com.mykyntus.entity.ImportRow.class);
+        Join<com.mykyntus.entity.ImportRow, Dossier> d = r.join("dossier");
+        Expression<Long> batchId = r.get("batch").get("id");
+        cq.multiselect(batchId, cb.count(r))
+                .where(predicates(cb, cq, d, request, keyValue))
+                .groupBy(batchId)
+                .orderBy(cb.desc(batchId));
+        List<FacetValue> values = em.createQuery(cq).setMaxResults(200).getResultList().stream()
+                .map(t -> new FacetValue(String.valueOf(t.get(0)), t.get(1, Long.class)))
+                .toList();
+        return new FacetResult(values, 0, false);
+    }
+
     @FunctionalInterface
     private interface ValuePredicate {
         Predicate build(CriteriaBuilder cb, From<?, Dossier> d, String value);
@@ -609,6 +645,7 @@ public class DossierSearchRepository {
                 case ColumnKey.StatusKey ignored -> throw com.mykyntus.exception.ApiException.badRequest("Tri impossible sur l'avancement");
                 case ColumnKey.DelayKey ignored -> d.get("dossierDate");
                 case ColumnKey.RouteKey ignored -> d.get("routedPlanif");
+                case ColumnKey.BatchKey ignored -> throw com.mykyntus.exception.ApiException.badRequest("Tri impossible sur le fichier");
                 case ColumnKey.RawKey(String column) -> {
                     MapJoin<Dossier, String, String> r = d.joinMap("rawData", JoinType.LEFT);
                     r.on(cb.equal(r.key(), column));

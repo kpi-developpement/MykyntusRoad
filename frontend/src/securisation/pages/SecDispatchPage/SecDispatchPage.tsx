@@ -57,6 +57,8 @@ interface DispatchPageProps {
   initialDate?: string;
   /** Extra header content (e.g. team switch). */
   headerExtra?: React.ReactNode;
+  /** Only the dossiers of this imported file (dispatch again what is not treated). */
+  initialBatch?: number | null;
 }
 
 /**
@@ -70,12 +72,14 @@ export function SecDispatchPage({
   pilotesHref = "/securisation/pilotes",
   initialDate,
   headerExtra,
+  initialBatch = null,
 }: DispatchPageProps = {}) {
   const toast = useToast();
   const confirm = useConfirm();
   const { flags } = useFlags();
   const [date, setDate] = useState(initialDate ?? tomorrow());
   const [scopeFlags, setScopeFlags] = useState<string[]>([]);
+  const [batch, setBatch] = useState<number | null>(initialBatch);
   const [summary, setSummary] = useState<DispatchSummary | null>(null);
   const [token, setToken] = useState(0);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -86,8 +90,18 @@ export function SecDispatchPage({
   const [transferFrom, setTransferFrom] = useState<PiloteLoad | null>(null);
 
   const criteria = useMemo<DossierCriteria>(
-    () => ({ date, search: "", filters: scopeFlags.length ? [{ key: "flags", values: scopeFlags }] : [], sort: null, page: 0, size: 1 }),
-    [date, scopeFlags],
+    () => ({
+      date,
+      search: "",
+      filters: [
+        ...(scopeFlags.length ? [{ key: "flags", values: scopeFlags }] : []),
+        ...(batch ? [{ key: "batch", values: [String(batch)] }] : []),
+      ],
+      sort: null,
+      page: 0,
+      size: 1,
+    }),
+    [date, scopeFlags, batch],
   );
 
   const currentKey = JSON.stringify([criteria, token]);
@@ -242,6 +256,11 @@ export function SecDispatchPage({
             );
           })}
         </div>
+        {batch && (
+          <Button1 variant="secondary" size="xs" onClick={() => setBatch(null)} title="Retirer le filtre fichier">
+            Fichier n° {batch} ✕
+          </Button1>
+        )}
         {scopeFlags.length > 0 && (
           <Button1 variant="ghost" size="xs" onClick={() => setScopeFlags([])}>
             Tous les dossiers

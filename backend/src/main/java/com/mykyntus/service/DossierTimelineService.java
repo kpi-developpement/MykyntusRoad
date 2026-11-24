@@ -76,7 +76,7 @@ public class DossierTimelineService {
 
         // the automatic N/A (cross-check with the sécurisation files) are not modifications
         int edits = (int) events.stream().filter(e -> !SecuCrossCheckService.ACTOR.equals(e.getActor())).filter(e -> switch (e.getType()) {
-            case IMPORT_UPDATED, VALUE_CLEARED, FLAGS_CHANGED -> true;
+            case IMPORT_UPDATED, VALUE_CLEARED, FLAGS_CHANGED, IMPORT_CANCELLED -> true;
             case VALUE_SET -> e.getOldValue() != null;
             case CREATED, DATA_RECEIVED, ASSIGNED -> false;
         }).count();

@@ -25,6 +25,7 @@ function summary<T>(filter: ColumnFilter, column?: GridColumn<T>): string {
   if (filter.op === "empty" || filter.op === "notEmpty") return OP_LABELS[filter.op].toLowerCase();
   if (filter.op && filter.text) return `${OP_LABELS[filter.op].toLowerCase()} « ${filter.text} »`;
   if (filter.text) return `contient « ${filter.text} »`;
+  if (filter.key === "batch") return (filter.values ?? []).map((v) => `n° ${v}`).join(", ");
   if (filter.key.startsWith("status:")) return (filter.values ?? []).map((v) => PROGRESS_LABELS[v as ProgressStatus] ?? v).join(", ");
   const values = (filter.values ?? []).map((v) => (v === "" ? "(Vides)" : (column?.formatValue?.(v) ?? v)));
   const shown = values.slice(0, 2).join(", ");
@@ -51,7 +52,7 @@ export function FilterChips<T>({ filters, columns, search, onRemove, onClearSear
             <Chip
               key={f.key}
               icon={<ListFilter className="size-3" />}
-              label={column?.label ?? (f.key.startsWith("status:") ? `Avancement ${SECTION_LABELS[f.key.slice(7) as FieldSection] ?? ""}` : f.key)}
+              label={column?.label ?? (f.key === "batch" ? "Fichier" : f.key.startsWith("status:") ? `Avancement ${SECTION_LABELS[f.key.slice(7) as FieldSection] ?? ""}` : f.key)}
               value={summary(f, column)}
               onRemove={() => onRemove(f.key)}
             />

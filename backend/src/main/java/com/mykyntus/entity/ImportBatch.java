@@ -38,4 +38,16 @@ public class ImportBatch {
     private int createdRows;
     private int updatedRows;
     private int skippedRows;
+
+    /** Cancelled: its values were removed from the dossiers (the line stays in the history). */
+    private Boolean rolledBack;
+
+    private java.time.LocalDateTime rolledBackAt;
+
+    @Column(length = 100)
+    private String rolledBackBy;
+
+    public boolean isRolledBack() {
+        return Boolean.TRUE.equals(rolledBack);
+    }
 }

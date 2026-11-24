@@ -1,5 +1,5 @@
-import { SecDispatchPage } from "@/securisation/pages/SecDispatchPage/SecDispatchPage";
+import { SecDispatchRoute } from "@/securisation/pages/SecDispatchPage/SecDispatchRoute";
 
 export default function Page() {
-  return <SecDispatchPage />;
+  return <SecDispatchRoute />;
 }

@@ -42,8 +42,8 @@ export function FlagStrip({ grid }: { grid: DossierGrid }) {
 
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-500 uppercase sm:inline-flex">
-        <FlagIcon className="size-3.5 text-brand-500" /> Drapeaux
+      <span className="hidden shrink-0 items-center gap-1.5 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase sm:inline-flex">
+        <FlagIcon className="size-3.5 text-cyan-300" /> Drapeaux
       </span>
       <div className="scroll-thin -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-1.5 [perspective:700px]">
         {flags.map((f, i) => {

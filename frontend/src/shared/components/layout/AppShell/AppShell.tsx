@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { Suspense, useCallback } from "react";
 import { LayoutProvider, useLayout } from "../../../context/LayoutContext";
 import { useHotkey, withMod } from "../../../hooks/useHotkey";
 import type { NavSection } from "../../../types/navigation";
 import { CommandPalette } from "../../command/CommandPalette/CommandPalette";
+import { WorkAlert } from "../../feedback/WorkAlert/WorkAlert";
 import { AuroraBackground } from "../AuroraBackground/AuroraBackground";
 import { InteractiveGrid } from "../InteractiveGrid/InteractiveGrid";
 import { PageTransition } from "../PageTransition/PageTransition";
@@ -45,11 +46,14 @@ function Frame({ children }: { children: React.ReactNode }) {
         <main className="scroll-thin relative flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
           <div aria-hidden className={styles.edge} />
           <PageTransition>
-            <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
+            <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+              <Suspense>{children}</Suspense>
+            </div>
           </PageTransition>
         </main>
       </div>
       <CommandPalette />
+      <WorkAlert />
     </div>
   );
 }

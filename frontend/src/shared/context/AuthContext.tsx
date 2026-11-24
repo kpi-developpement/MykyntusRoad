@@ -16,8 +16,8 @@ const AuthContext = createContext<AuthState | null>(null);
 
 /** Home page of each role. */
 export function homeFor(role: Role): string {
-  if (role === "ADMIN") return "/admin/suivi";
-  if (role === "ADMIN_SECURISATION") return "/securisation/espace";
+  if (role === "ADMIN") return "/admin/dashboard";
+  if (role === "ADMIN_SECURISATION") return "/securisation/dashboard";
   return "/pilote";
 }
 
