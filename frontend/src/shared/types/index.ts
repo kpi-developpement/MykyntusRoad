@@ -61,8 +61,20 @@ export const SECTIONS: FieldSection[] = ["SECURISATION", "PLANIFICATION", "J", "
 export const MAIN_SECTIONS: FieldSection[] = ["PLANIFICATION", "J", "J_PLUS_1"];
 /** Work of the sécurisation team (with the J-1 columns of the "Planifié" dossiers). */
 export const SECURISATION_SECTIONS: FieldSection[] = ["SECURISATION"];
-/** Columns configured by the admin. */
-export const ADMIN_FIELD_SECTIONS: FieldSection[] = ["J", "J_PLUS_1"];
+/**
+ * Columns configured by the admin. In "Colonnes & valeurs", J_MINUS_1 is the J-1 tab: the sécurisation
+ * columns flagged "Colonne J-1", shared with the sécurisation admin (they go to the planification when not secured).
+ */
+export const ADMIN_FIELD_SECTIONS: FieldSection[] = ["J_MINUS_1", "J", "J_PLUS_1"];
+/** Columns configured by the sécurisation admin: its own columns and the J-1 ones. */
+export const SEC_FIELD_SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1"];
+
+/** Is this column shown in this "Colonnes & valeurs" tab (J_MINUS_1 = sécurisation columns flagged J-1)? */
+export function fieldInTab(field: { section: FieldSection; planification: boolean }, tab: FieldSection): boolean {
+  if (tab === "J_MINUS_1") return field.section === "J_MINUS_1" || (field.section === "SECURISATION" && field.planification);
+  if (tab === "SECURISATION") return field.section === "SECURISATION" && !field.planification;
+  return field.section === tab;
+}
 
 export const SEC_SOURCES: DataSource[] = ["SEC_GLOBAL", "SEC_1", "SEC_2", "SEC_3"];
 export const SOURCE_LABELS: Record<DataSource, string> = {

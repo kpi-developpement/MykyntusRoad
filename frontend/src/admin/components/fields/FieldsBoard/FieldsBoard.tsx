@@ -8,13 +8,13 @@ import { Skeleton } from "@/shared/components/feedback/Skeleton/Skeleton";
 import { SegmentedControl } from "@/shared/components/segmented/SegmentedControl/SegmentedControl";
 import { useToast } from "@/shared/components/toast/ToastProvider/ToastProvider";
 import { fieldService } from "@/shared/services/fieldService";
-import { SECTION_LABELS, type AppField, type FieldSection } from "@/shared/types";
+import { SECTION_LABELS, fieldInTab, type AppField, type FieldSection } from "@/shared/types";
 import { FieldCard } from "../../card/FieldCard/FieldCard";
 import { FieldCreateModal } from "../../modal/FieldCreateModal/FieldCreateModal";
 
 const RIGHTS: Record<FieldSection, string> = {
-  SECURISATION: "Modifiable par l'admin sécurisation et les pilotes sécurisation. « Colonne J-1 » = passe à la planification quand la Cellule plani n'est pas « Planifié ».",
-  J_MINUS_1: "Ancienne section J-1 (fusionnée dans Sécurisation).",
+  SECURISATION: "Modifiable par l'admin sécurisation et les pilotes sécurisation.",
+  J_MINUS_1: "Gérées par l'admin sécurisation et l'administrateur. Saisies par la sécurisation si la Cellule plani est « Planifié », sinon par la planification.",
   PLANIFICATION: "Colonnes J-1 des dossiers non « Planifié » : agents planification et administrateur.",
   J: "Modifiable par l'administrateur et les agents J.",
   J_PLUS_1: "Modifiable par l'administrateur et les agents J.",
@@ -42,7 +42,7 @@ export function FieldsBoard({ sections }: FieldsBoardProps) {
   useEffect(load, [load]);
 
   const onError = useCallback((message: string) => toast.error("Action impossible", message), [toast]);
-  const list = fields?.filter((f) => f.section === section) ?? [];
+  const list = fields?.filter((f) => fieldInTab(f, section)) ?? [];
 
   return (
     <>
@@ -53,7 +53,7 @@ export function FieldsBoard({ sections }: FieldsBoardProps) {
               value={section}
               onChange={setSection}
               ariaLabel="Section"
-              options={sections.map((s) => ({ value: s, label: SECTION_LABELS[s], count: fields?.filter((f) => f.section === s).length }))}
+              options={sections.map((s) => ({ value: s, label: SECTION_LABELS[s], count: fields?.filter((f) => fieldInTab(f, s)).length }))}
             />
           )}
           <p className="flex items-center gap-2 text-xs text-slate-500">
@@ -90,7 +90,7 @@ export function FieldsBoard({ sections }: FieldsBoardProps) {
             className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3"
           >
             {list.map((f, i) => (
-              <FieldCard key={`${f.id}-${f.label}`} field={f} index={i} onChanged={load} onError={onError} />
+              <FieldCard key={`${f.id}-${f.label}`} field={f} index={i} secAdmin={sections.includes("SECURISATION")} onChanged={load} onError={onError} />
             ))}
             <motion.button
               initial={{ opacity: 0 }}

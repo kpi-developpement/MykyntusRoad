@@ -3,6 +3,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import { FieldsBoard } from "@/admin/components/fields/FieldsBoard/FieldsBoard";
 import { PageHeader } from "@/shared/components/layout/PageHeader/PageHeader";
+import { SEC_FIELD_SECTIONS } from "@/shared/types";
 import { SourceColumnsPanel } from "../../components/columns/SourceColumnsPanel/SourceColumnsPanel";
 
 /** Sécurisation admin: columns shown from the 3 files + the sécurisation columns and their values. */
@@ -22,7 +23,7 @@ export function SecColumnsPage() {
         <span className="h-px w-6 bg-linear-to-r from-brand-600 to-sky-400" />
         Colonnes de travail
       </h2>
-      <FieldsBoard sections={["SECURISATION"]} />
+      <FieldsBoard sections={SEC_FIELD_SECTIONS} />
     </>
   );
 }

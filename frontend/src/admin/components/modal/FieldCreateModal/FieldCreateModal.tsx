@@ -47,7 +47,6 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
   const [type, setType] = useState<FieldType>("SELECT");
   const [values, setValues] = useState<string[]>([]);
   const [published, setPublished] = useState(false);
-  const [planification, setPlanification] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -55,7 +54,15 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
     if (!label.trim()) return;
     setBusy(true);
     try {
-      const field = await fieldService.create({ label: label.trim(), section, type, published: section === "SECURISATION" && published, planification: section === "SECURISATION" && planification });
+      // the J-1 tab holds sécurisation columns flagged J-1
+      const j1 = section === "J_MINUS_1";
+      const field = await fieldService.create({
+        label: label.trim(),
+        section: j1 ? "SECURISATION" : section,
+        type,
+        published: section === "SECURISATION" && published,
+        planification: j1,
+      });
       if (type === "SELECT") {
         for (const value of values) await fieldService.addOption(field.id, { value });
       }
@@ -103,14 +110,10 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
           <Switch1 checked={published} onChange={setPublished} />
         </div>
       )}
-      {section === "SECURISATION" && (
-        <div className="flex items-center justify-between gap-4 rounded-2xl bg-violet-50/60 px-4 py-3 ring-1 ring-violet-100">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Colonne J-1</p>
-            <p className="text-xs text-slate-500">Traitée par la planification quand la « Cellule plani » n&apos;est pas « Planifié ».</p>
-          </div>
-          <Switch1 checked={planification} onChange={setPlanification} />
-        </div>
+      {section === "J_MINUS_1" && (
+        <p className="rounded-2xl bg-violet-50/60 px-4 py-3 text-xs text-slate-600 ring-1 ring-violet-100">
+          Colonne J-1 : saisie par la sécurisation quand la « Cellule plani » est « Planifié », sinon par la planification.
+        </p>
       )}
       <AnimatePresence initial={false}>
         {type === "SELECT" && (

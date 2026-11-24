@@ -17,12 +17,14 @@ import { cn } from "@/shared/utils/cn";
 interface FieldCardProps {
   field: AppField;
   index: number;
+  /** Sécurisation admin: may publish a column and move it in / out of J-1 (the admin only edits the J-1 ones). */
+  secAdmin?: boolean;
   onChanged: () => void;
   onError: (message: string) => void;
 }
 
 /** One application column: name, type, active flag and dropdown values. */
-export function FieldCard({ field, index, onChanged, onError }: FieldCardProps) {
+export function FieldCard({ field, index, secAdmin = false, onChanged, onError }: FieldCardProps) {
   const confirm = useConfirm();
   const [label, setLabel] = useState(field.label);
   const [newValue, setNewValue] = useState("");
@@ -125,13 +127,13 @@ export function FieldCard({ field, index, onChanged, onError }: FieldCardProps) 
           />
         </div>
 
-        {field.section === "SECURISATION" && (
+        {secAdmin && field.section === "SECURISATION" && !field.planification && (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-cyan-50/60 px-3 py-2 ring-1 ring-cyan-100">
             <span className="text-xs font-medium text-slate-600">Visible dans le suivi (lecture seule)</span>
             <Switch1 size="sm" checked={field.published} disabled={busy} onChange={(published) => updateField({ published })} />
           </div>
         )}
-        {field.section === "SECURISATION" && field.code !== "j1_cellule_plani" && (
+        {secAdmin && field.section === "SECURISATION" && field.code !== "j1_cellule_plani" && (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-violet-50/60 px-3 py-2 ring-1 ring-violet-100">
             <span className="text-xs font-medium text-slate-600" title="Traitée par la planification quand la Cellule plani n'est pas « Planifié »">
               Colonne J-1 (planification)

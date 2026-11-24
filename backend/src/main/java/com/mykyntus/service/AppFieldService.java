@@ -7,6 +7,7 @@ import com.mykyntus.dto.field.FieldOptionResponse;
 import com.mykyntus.entity.AppField;
 import com.mykyntus.entity.FieldOption;
 import com.mykyntus.entity.FieldSection;
+import com.mykyntus.entity.Role;
 import com.mykyntus.security.CurrentUser;
 import com.mykyntus.exception.ApiException;
 import com.mykyntus.mapper.DtoMapper;
@@ -47,7 +48,7 @@ public class AppFieldService {
 
     @Transactional
     public AppFieldResponse create(AppFieldRequest request, CurrentUser user) {
-        checkConfigure(request.section(), user);
+        checkConfigure(request.section(), Boolean.TRUE.equals(request.planification()), user);
         AppField field = AppField.builder()
                 .code(uniqueCode(request.section().name().toLowerCase() + "_" + TextUtils.slug(request.label())))
                 .label(request.label().trim())
@@ -67,7 +68,8 @@ public class AppFieldService {
     @Transactional
     public AppFieldResponse update(Long id, AppFieldRequest request, CurrentUser user) {
         AppField field = getField(id, user);
-        checkConfigure(request.section(), user);
+        checkConfigure(request.section(),
+                request.planification() != null ? request.planification() : field.isPlanification(), user);
         field.setLabel(request.label().trim());
         field.setSection(request.section());
         field.setType(request.type());
@@ -143,13 +145,21 @@ public class AppFieldService {
     /** Field that this user is allowed to configure (sécurisation columns belong to ADMIN_SECURISATION). */
     private AppField getField(Long id, CurrentUser user) {
         AppField field = fieldRepository.findById(id).orElseThrow(() -> ApiException.notFound("Champ introuvable"));
-        checkConfigure(field.getSection(), user);
+        checkConfigure(field.getSection(), field.isPlanification(), user);
         return field;
     }
 
-    private void checkConfigure(FieldSection section, CurrentUser user) {
-        if (!user.role().canConfigure(section)) {
-            throw ApiException.forbidden("Vous ne gérez pas les colonnes de la section " + section.getLabel());
+    /**
+     * The J-1 columns (sécurisation columns flagged {@code planification}) are shared: the sécurisation admin
+     * manages them, and so does the admin, because they go to his planification team when a dossier is not
+     * "Planifié" (J-1 left unsecured).
+     */
+    private void checkConfigure(FieldSection section, boolean planification, CurrentUser user) {
+        boolean j1 = section == FieldSection.SECURISATION && planification;
+        if (!user.role().canConfigure(section) && !(j1 && user.role() == Role.ADMIN)) {
+            throw ApiException.forbidden(user.role() == Role.ADMIN && section == FieldSection.SECURISATION
+                    ? "Vous ne gérez que les colonnes J-1 de la sécurisation"
+                    : "Vous ne gérez pas les colonnes de la section " + section.getLabel());
         }
     }
 

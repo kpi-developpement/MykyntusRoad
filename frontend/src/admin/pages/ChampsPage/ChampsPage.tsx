@@ -12,7 +12,7 @@ export function ChampsPage() {
       <PageHeader
         eyebrow="Administration"
         title="Colonnes & valeurs"
-        description="Définissez les colonnes de l'application et les valeurs proposées dans chaque liste déroulante. La sécurisation est gérée par son admin."
+        description="Définissez les colonnes J-1 / J / J+1 et les valeurs proposées dans chaque liste déroulante. Les colonnes J-1 sont partagées avec l'admin sécurisation : quand un dossier n'est pas sécurisé, elles passent à la planification."
         icon={<SlidersHorizontal />}
       />
       <FieldsBoard sections={ADMIN_FIELD_SECTIONS} />
