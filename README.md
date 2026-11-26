@@ -68,6 +68,10 @@ En local, le mot de passe de la base est lu dans `backend/.env` (`DB_PASSWORD=..
 
 Le rôle « Agent planification » n'existe plus : ses comptes deviennent des PILOTE_J au démarrage.
 
+Comptes de l'équipe : `backend/src/main/resources/seed/accounts.csv` (identifiant;nom;rôle;hash BCrypt;compte remplacé),
+créés au démarrage s'ils n'existent pas. Un compte existant n'est jamais écrasé (sauf s'il a encore un ancien mot de
+passe par défaut public). Les identifiants / mots de passe en clair sont dans `comptes/` (ignoré par git, à ne jamais commiter).
+
 ## Fonctionnement
 
 - **Import** : n'importe quel `.xlsx/.xls`. Seule la colonne `Ordre de travail: ID Externe` est obligatoire

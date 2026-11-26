@@ -10,3 +10,6 @@ backend/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# Comptes et mots de passe générés (jamais commités)
+comptes/

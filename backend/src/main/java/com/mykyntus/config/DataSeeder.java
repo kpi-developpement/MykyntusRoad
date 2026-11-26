@@ -13,11 +13,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Creates the default users and application columns. Runs at every start but only adds what is
@@ -31,6 +37,9 @@ import java.util.List;
 public class DataSeeder implements ApplicationRunner {
 
     private static final List<String> YES_NO = List.of("Oui", "Non");
+    private static final String ACCOUNTS = "seed/accounts.csv";
+    /** Passwords of the accounts once created by this seeder (public in the history): never kept on a real account. */
+    private static final List<String> PUBLIC_DEFAULTS = List.of("agent123", "plani123");
 
     private final AppProperties properties;
     private final AppUserRepository userRepository;
@@ -49,8 +58,7 @@ public class DataSeeder implements ApplicationRunner {
         ensureUser("admin.secu", "secu1234", "Admin sécurisation", Role.ADMIN_SECURISATION);
         ensureUser("pilote.secu", "pilote123", "Pilote sécurisation", Role.PILOTE_SECURISATION);
         ensureUser("pilote.j", "pilote123", "Pilote J", Role.PILOTE_J);
-        ensureUser("a.guengombe", "agent123", "GUENGOMBE Abed Prince", Role.PILOTE_J);
-        ensureUser("i.labyied", "plani123", "Islam LABYIED", Role.PILOTE_J);
+        seedAccounts();
         seedMainFields();
         seedSecurisationFields();
         boolean separated = separateJ1();
@@ -130,6 +138,64 @@ public class DataSeeder implements ApplicationRunner {
             AppField objet = field(code, "Objet (" + mail.getLabel() + ")", mail.getSection(), FieldType.TEXT, mail.getPosition() + 1, List.of());
             objet.setPlanification(mail.isPlanification());
             fieldRepository.save(objet);
+        }
+    }
+
+    /**
+     * The team's accounts (resources/seed/accounts.csv: username;full name;role;BCrypt hash;replaced account).
+     * A missing account is created with its role; an existing one is left alone (its password may have been
+     * changed), unless it still has one of the public default passwords of this file's history: then it takes
+     * the role, name and password of the file. When an account replaces an older one (misspelt username),
+     * the older one is deactivated, its data is kept.
+     */
+    private void seedAccounts() {
+        ClassPathResource resource = new ClassPathResource(ACCOUNTS);
+        if (!resource.exists()) {
+            return;
+        }
+        int created = 0;
+        int updated = 0;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String[] p = line.split(";", -1);
+                if (p.length < 4) {
+                    log.warn("Ignored account line: {}", line);
+                    continue;
+                }
+                String username = p[0].trim();
+                String fullName = p[1].trim();
+                Role role = Role.parse(p[2].trim());
+                String hash = p[3].trim();
+                String replaces = p.length > 4 ? p[4].trim() : "";
+                Optional<AppUser> existing = userRepository.findByUsername(username);
+                if (existing.isEmpty()) {
+                    userRepository.save(AppUser.builder().username(username).password(hash).fullName(fullName).role(role).build());
+                    created++;
+                    if (!replaces.isEmpty()) {
+                        userRepository.findByUsername(replaces).ifPresent(old -> {
+                            old.setActive(false);
+                            log.info("Account {} replaced by {}: deactivated", replaces, username);
+                        });
+                    }
+                    continue;
+                }
+                AppUser user = existing.get();
+                if (PUBLIC_DEFAULTS.stream().anyMatch(d -> passwordEncoder.matches(d, user.getPassword()))) {
+                    user.setPassword(hash);
+                    user.setRole(role);
+                    user.setFullName(fullName);
+                    updated++;
+                }
+            }
+        } catch (IOException e) {
+            log.error("Team accounts not read: {}", e.getMessage());
+        }
+        if (created + updated > 0) {
+            log.info("Team accounts: {} created, {} default password(s) replaced", created, updated);
         }
     }
 
