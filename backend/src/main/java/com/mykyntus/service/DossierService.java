@@ -17,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +32,8 @@ public class DossierService {
     private final AppFieldRepository fieldRepository;
     private final FieldOptionRepository optionRepository;
     private final SourceColumnRepository sourceColumnRepository;
+    private final WorkerService workerService;
+    private final AppUserRepository userRepository;
 
     /** Table page: dynamic columns, application fields and the matching dossiers. */
     @Transactional(readOnly = true)
@@ -47,20 +50,30 @@ public class DossierService {
             }
         }
 
+        Map<Long, Map<String, List<String>>> joined = workerService.joined(result.getContent());
+        Long etatFinal = fieldRepository.findAll().stream()
+                .filter(f -> f.isActive() && DossierProgressService.ETAT_FINAL.equals(f.getCode()))
+                .map(AppField::getId).findFirst().orElse(null);
+        LocalDate today = LocalDate.now();
+
         List<DossierRowResponse> rows = result.getContent().stream()
-                .map(d -> new DossierRowResponse(d.getId(), d.getIdExterne(), d.getDossierDate(),
-                        new LinkedHashMap<>(d.getRawData()),
-                        valuesByDossier.getOrDefault(d.getId(), Map.of()),
-                        FlagService.decode(d.getFlags()), d.isFlagsManual(), d.getAssignedTo(),
-                        d.getAssignedPlanif(), d.getAssignedJ(), d.isRoutedPlanif(), d.isHorsSecu(),
-                        DossierProgressService.delay(d).name()))
+                .map(d -> {
+                    Map<Long, String> values = valuesByDossier.getOrDefault(d.getId(), Map.of());
+                    String alert = etatFinal == null ? null : DossierProgressService.secuAlert(d, values.get(etatFinal), today);
+                    return new DossierRowResponse(d.getId(), d.getIdExterne(), d.getDossierDate(),
+                            new LinkedHashMap<>(d.getRawData()), values,
+                            FlagService.decode(d.getFlags()), d.isFlagsManual(), d.getAssignedTo(),
+                            d.getAssignedJ(), joined.getOrDefault(d.getId(), Map.of()), d.isRoutedPlanif(), d.isHorsSecu(),
+                            DossierProgressService.delay(d).name(), alert);
+                })
                 .toList();
 
         List<SourceColumnResponse> columns = sourceColumnRepository.findByVisibleTrueOrderByPositionAsc()
                 .stream().map(DtoMapper::toSourceColumn).toList();
 
         return new DossierTableResponse(columns, activeFields(), new PageResponse<>(rows, result.getNumber(),
-                result.getSize(), result.getTotalElements(), result.getTotalPages()));
+                result.getSize(), result.getTotalElements(), result.getTotalPages()), searchRepository.openCount(request),
+                names(rows));
     }
 
     /** Distinct values of one column, for the column filter. */
@@ -88,7 +101,24 @@ public class DossierService {
                 .map(s -> new DossierStatsResponse.SectionStat(s, s.getLabel(),
                         treated.getOrDefault(s, 0L), fieldCount.getOrDefault(s, 0L), done.getOrDefault(s, 0L)))
                 .toList();
-        return new DossierStatsResponse(total, sections);
+        return new DossierStatsResponse(total, sections, searchRepository.secuPendingCount(request));
+    }
+
+    /** Display names of the pilots shown in the rows. */
+    private Map<String, String> names(List<DossierRowResponse> rows) {
+        Set<String> usernames = new HashSet<>();
+        for (DossierRowResponse r : rows) {
+            if (r.assignedTo() != null) usernames.add(r.assignedTo());
+            if (r.assignedJ() != null) usernames.add(r.assignedJ());
+            r.workers().values().forEach(usernames::addAll);
+        }
+        Map<String, String> names = new HashMap<>();
+        if (!usernames.isEmpty()) {
+            userRepository.findAll().stream()
+                    .filter(u -> usernames.contains(u.getUsername()))
+                    .forEach(u -> names.put(u.getUsername(), PiloteService.displayName(u)));
+        }
+        return names;
     }
 
     private List<AppFieldResponse> activeFields() {

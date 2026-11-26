@@ -19,7 +19,7 @@ export interface GroupTheme {
 
 /**
  * One colour per service, the same everywhere (table headers, road map, history):
- * Sécurisation blue, Planification violet, J green, J+1 fuchsia. Orange and red are kept for the delays.
+ * Sécurisation blue, J-1 violet, J green, J+1 fuchsia. Orange and red are kept for the delays.
  */
 const SECURISATION: GroupTheme = {
   header: "bg-linear-to-r from-blue-700 to-blue-500 text-white",
@@ -32,20 +32,22 @@ const SECURISATION: GroupTheme = {
   chip: "bg-blue-50 text-blue-700 ring-blue-200",
 };
 
+const J_MINUS_1: GroupTheme = {
+  header: "bg-linear-to-r from-violet-700 to-violet-500 text-white",
+  sub: "bg-violet-50 text-violet-950",
+  bar: "bg-violet-600",
+  soft: "bg-violet-50 text-violet-700",
+  ring: "ring-violet-200",
+  solid: "bg-violet-600",
+  text: "text-violet-700",
+  chip: "bg-violet-50 text-violet-700 ring-violet-200",
+};
+
 export const SECTION_THEME: Record<GroupId, GroupTheme> = {
   SECURISATION,
-  // history written before J-1 was merged into Sécurisation
-  J_MINUS_1: SECURISATION,
-  PLANIFICATION: {
-    header: "bg-linear-to-r from-violet-700 to-violet-500 text-white",
-    sub: "bg-violet-50 text-violet-950",
-    bar: "bg-violet-600",
-    soft: "bg-violet-50 text-violet-700",
-    ring: "ring-violet-200",
-    solid: "bg-violet-600",
-    text: "text-violet-700",
-    chip: "bg-violet-50 text-violet-700 ring-violet-200",
-  },
+  J_MINUS_1,
+  // history of the former planification team (its columns are the J-1 ones)
+  PLANIFICATION: J_MINUS_1,
   J: {
     header: "bg-linear-to-r from-emerald-700 to-emerald-500 text-white",
     sub: "bg-emerald-50 text-emerald-950",

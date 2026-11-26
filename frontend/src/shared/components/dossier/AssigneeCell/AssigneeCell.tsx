@@ -14,6 +14,10 @@ interface AssigneeCellProps {
   pilotes: Pilote[] | null;
   editable: boolean;
   onAssign: (pilote: string | null) => Promise<void>;
+  /** Pilots who joined the lead on this dossier. */
+  joined?: string[];
+  /** Display name of a username (names sent with the table). */
+  nameOf?: (username: string) => string;
 }
 
 export function piloteName(username: string | null, pilotes: Pilote[] | null): string {
@@ -22,15 +26,20 @@ export function piloteName(username: string | null, pilotes: Pilote[] | null): s
 }
 
 /** Pilot / agent the dossier is dispatched to. The admin of the team changes it in one click. */
-export function AssigneeCell({ assignee, pilotes, editable, onAssign }: AssigneeCellProps) {
+export function AssigneeCell({ assignee, pilotes, editable, onAssign, joined = [], nameOf }: AssigneeCellProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
-  const name = piloteName(assignee, pilotes);
+  const label = (u: string) => pilotes?.find((p) => p.username === u)?.fullName || nameOf?.(u) || u;
+  const name = assignee ? label(assignee) : "";
+  const others = joined.filter((u) => u !== assignee);
 
   const display = assignee ? (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-slate-700" title={name}>
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-slate-700" title={[name, ...others.map(label)].join(", ")}>
       <Avatar1 name={name} size="sm" className="size-5 text-[8px] ring-1" />
       <span className="truncate">{name}</span>
+      {others.length > 0 && (
+        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500 tabular-nums">+{others.length}</span>
+      )}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-400">

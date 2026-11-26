@@ -5,8 +5,9 @@ import java.util.Map;
 
 /**
  * @param autoFilled values filled automatically at the same time (field id -> value),
- *                   e.g. "Pilote" and "Date de traitement" of the sécurisation section
+ *                   e.g. the "Pilote" of the section
+ * @param open       the conditional J-1 columns of the dossier are open (Cellule plani not "Planifié")
  */
 public record FieldValueResponse(Long dossierId, Long fieldId, String value, String updatedBy, LocalDateTime updatedAt,
-                                 Map<Long, String> autoFilled) {
+                                 Map<Long, String> autoFilled, boolean open) {
 }

@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Pilots and dispatch of any team: SECURISATION (sécurisation admin), PLANIFICATION and J (admin).
+ * Pilots of a team and dispatch of the teams that have one (SECURISATION, by the sécurisation admin).
+ * The J pilots are not dispatched: they take their dossiers themselves.
  * Every connected user can read the members of a team (names shown in the tables).
  */
 @RestController
@@ -59,7 +60,7 @@ public class TeamController {
     /** The team, if the connected user is the admin who dispatches it. */
     private static Team managed(String value, Jwt jwt) {
         Team team = Team.parse(value);
-        if (CurrentUser.from(jwt).role() != team.adminRole()) {
+        if (!team.dispatched() || CurrentUser.from(jwt).role() != team.adminRole()) {
             throw ApiException.forbidden("Vous ne gérez pas le dispatch de l'équipe " + team.label());
         }
         return team;

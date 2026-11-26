@@ -19,7 +19,7 @@ import { FilterDock } from "../FilterDock/FilterDock";
 import { GridToolbar } from "../GridToolbar/GridToolbar";
 import { ProgressFilter } from "../ProgressFilter/ProgressFilter";
 
-/** Default "Avancement" sections (the planification section has no column of its own). */
+/** Default "Avancement" sections. */
 const PROGRESS_SECTIONS: FieldSection[] = ["J", "J_PLUS_1"];
 
 interface DossierGridPanelProps {
@@ -35,12 +35,32 @@ interface DossierGridPanelProps {
   progressSections?: FieldSection[];
   /** Rows shown greyed out (read only). */
   rowMuted?: (row: DossierRow) => boolean;
+  /** Tooltip of a greyed out row. */
+  mutedTitle?: string;
+  /** Rows highlighted (the dossiers the connected pilot works on). */
+  rowMine?: (row: DossierRow) => boolean;
+  /** Content shown between the toolbar and the table (alerts...). */
+  banner?: React.ReactNode;
 }
 
 /** Card with toolbar, active filter chips, data grid and pagination. */
-export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, maxHeight, progressSections = PROGRESS_SECTIONS, rowMuted }: DossierGridPanelProps) {
+export function DossierGridPanel({
+  gridId,
+  grid,
+  columns,
+  groups,
+  emptyAction,
+  maxHeight,
+  progressSections = PROGRESS_SECTIONS,
+  rowMuted,
+  mutedTitle,
+  rowMine,
+  banner,
+}: DossierGridPanelProps) {
   const prefs = useGridPreferences(gridId);
-  const visible = columns.filter((c) => prefs.isVisible(c));
+  // each profile's own order, then its visible columns
+  const arranged = prefs.arrange(columns);
+  const visible = arranged.filter((c) => prefs.isVisible(c));
   const rows = grid.data?.rows;
   const filtered = grid.criteria.filters.length > 0 || !!grid.criteria.search;
   const toast = useToast();
@@ -48,9 +68,11 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
 
   async function exportExcel() {
     const titles = new Map((groups ?? []).map((g) => [g.id, g.title]));
-    const cols = visible.map((c) => {
+    const cols = visible.flatMap((c) => {
       const group = c.groupId ? titles.get(c.groupId) : undefined;
-      return { key: c.key, label: group && !c.key.startsWith("raw:") ? `${group} · ${c.label}` : c.label };
+      const col = { key: c.key, label: group && !c.key.startsWith("raw:") ? `${group} · ${c.label}` : c.label };
+      // the flags live in the ID cell: exported right after it
+      return c.key === "idExterne" ? [col, { key: "flags", label: "Drapeaux" }] : [col];
     });
     setExporting(true);
     try {
@@ -65,7 +87,8 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
 
   return (
     <Surface as="section" className="overflow-hidden rounded-3xl">
-      <GridToolbar grid={grid} columns={columns} groups={groups} prefs={prefs} onExport={exportExcel} exporting={exporting} />
+      <GridToolbar grid={grid} columns={arranged} groups={groups} prefs={prefs} onExport={exportExcel} exporting={exporting} />
+      {banner}
       {progressSections.length > 0 && <ProgressFilter grid={grid} sections={progressSections} />}
       <FilterChips
         filters={grid.criteria.filters}
@@ -107,6 +130,8 @@ export function DossierGridPanel({ gridId, grid, columns, groups, emptyAction, m
           loadFacets={grid.loadFacets}
           maxHeight={maxHeight}
           rowMuted={rowMuted}
+          mutedTitle={mutedTitle}
+          rowMine={rowMine}
           empty={
             filtered ? (
               <EmptyState

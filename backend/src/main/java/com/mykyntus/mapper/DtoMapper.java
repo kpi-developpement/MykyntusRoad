@@ -28,6 +28,7 @@ public final class DtoMapper {
         return new AppFieldResponse(
                 f.getId(), f.getCode(), f.getLabel(), f.getSection(), f.getSection().getLabel(),
                 f.getType(), f.getPosition(), f.isActive(), f.isPublished(), f.isPlanification(),
+                com.mykyntus.service.DossierProgressService.isAuto(f),
                 f.getOptions().stream()
                         .filter(o -> !onlyActiveOptions || o.isActive())
                         .sorted(Comparator.comparingInt(FieldOption::getPosition).thenComparing(FieldOption::getId))

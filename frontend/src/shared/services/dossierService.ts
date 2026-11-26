@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { DossierCriteria, DossierFlags, DossierStats, DossierTable, DossierTimeline, FacetResponse, FieldValue } from "../types";
+import type { DossierCriteria, DossierFlags, DossierStats, DossierTable, DossierTimeline, DossierWorkers, FacetResponse, FieldValue, Team } from "../types";
 
 export function toBody(c: DossierCriteria) {
   return {
@@ -23,6 +23,12 @@ export const dossierService = {
   timeline: (dossierId: number) => api.get<DossierTimeline>(`/api/dossiers/${dossierId}/timeline`),
   setFlags: (dossierId: number, codes: string[]) => api.put<DossierFlags>(`/api/dossiers/${dossierId}/flags`, { codes }),
   resetFlags: (dossierId: number) => api.delete<DossierFlags>(`/api/dossiers/${dossierId}/flags`),
+  /** Pilots of a team on the dossier (shown before taking / joining it). */
+  workers: (dossierId: number, team: Team) => api.get<DossierWorkers>(`/api/dossiers/${dossierId}/workers/${team}`),
+  /** Take the dossier, or join the pilots already on it. */
+  join: (dossierId: number, team: Team) => api.post<DossierWorkers>(`/api/dossiers/${dossierId}/workers/${team}`),
+  /** Stop working on the dossier. */
+  leave: (dossierId: number, team: Team) => api.delete<DossierWorkers>(`/api/dossiers/${dossierId}/workers/${team}`),
   /** Excel export of every matching dossier (columns in the given order). */
   exportExcel: (criteria: DossierCriteria, columns: { key: string; label: string }[]) =>
     api.download("/api/dossiers/export", { criteria: { ...toBody(criteria), page: 0 }, columns }, "dossiers.xlsx"),

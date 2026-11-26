@@ -30,13 +30,19 @@ public class SchemaPatcher implements ApplicationRunner {
             "source_column:source_column_source_check",
             "import_batch:import_batch_source_check",
             "dossier_event:dossier_event_type_check",
-            "dossier_event:dossier_event_section_check");
+            "dossier_event:dossier_event_section_check",
+            "dossier_worker:dossier_worker_team_check");
 
     private final DataSource dataSource;
     private final JdbcTemplate jdbc;
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        // the planification role was removed: its accounts become J pilots
+        int moved = jdbc.update("UPDATE app_user SET role = 'PILOTE_J' WHERE role = ?", com.mykyntus.entity.Role.LEGACY_PLANIFICATION);
+        if (moved > 0) {
+            log.info("{} planification account(s) converted to PILOTE_J", moved);
+        }
         try (Connection connection = dataSource.getConnection()) {
             if (!"PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
                 return;

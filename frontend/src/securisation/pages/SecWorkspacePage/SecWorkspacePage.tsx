@@ -10,9 +10,10 @@ import { SEC_SOURCES, SECURISATION_SECTIONS } from "@/shared/types";
 import { tomorrow } from "@/shared/utils/date";
 
 /**
- * Work space of the sécurisation team: Date | EPS | Délai | Équipe J-1 | Drapeaux | Pilote | global file |
- * Sécurisation (with the J-1 columns while the dossier is "Planifié") | sécurisation files 1-3.
- * A pilot sees his own dossiers first, the others greyed out (read only); the admin reassigns in one click.
+ * Work space of the sécurisation team: Date | EPS + drapeaux | Délai | Pilote | Sécurisation (up to
+ * "Etat final", nothing of J-1) | global file | sécurisation files 1-3.
+ * A pilot sees his own dossiers first; he can join a colleague's dossier; the admin reassigns in one click.
+ * The day before the appointment, the dossiers still not secured are declared at the top.
  */
 export function SecWorkspacePage({ canImport = false }: { canImport?: boolean }) {
   const { user } = useAuth();
@@ -38,7 +39,7 @@ export function SecWorkspacePage({ canImport = false }: { canImport?: boolean })
       title={isPilot ? "Mes dossiers à sécuriser" : "Espace sécurisation"}
       description={
         isPilot
-          ? "Vos dossiers en premier, ceux des autres pilotes en lecture seule. Quand « Cellule plani » n'est pas « Planifié », les colonnes J-1 passent à la planification."
+          ? "Vos dossiers en premier. Pour aider un collègue, rejoignez son dossier depuis la colonne Pilote. Remplissez jusqu'à l'état final."
           : "Dossiers du lendemain avec leurs drapeaux et leur pilote. Changez un pilote d'un clic, ou répartissez tout depuis le dispatch."
       }
       icon={<ShieldCheck />}
@@ -48,7 +49,8 @@ export function SecWorkspacePage({ canImport = false }: { canImport?: boolean })
       sections={SECURISATION_SECTIONS}
       rawSources={SEC_SOURCES}
       rawHidden={false}
-      teams={[{ team: "SECURISATION", editable: isAdmin }]}
+      teams={[{ team: "SECURISATION", dispatch: isAdmin }]}
+      secuAlert
       actions={adminActions}
       renderActions={isPilot && user ? (grid) => <MineToggle grid={grid} team="SECURISATION" username={user.username} /> : undefined}
       emptyAction={adminActions}

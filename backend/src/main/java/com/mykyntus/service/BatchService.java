@@ -42,6 +42,7 @@ public class BatchService {
     private final DossierEventRepository eventRepository;
     private final FlagService flagService;
     private final DossierProgressService progressService;
+    private final com.mykyntus.repository.DossierWorkerRepository workerRepository;
 
     @PersistenceContext
     private EntityManager em;
@@ -215,8 +216,6 @@ public class BatchService {
                 d.setCancelled(true);
                 d.setAssignedTo(null);
                 d.setAssignedAt(null);
-                d.setAssignedPlanif(null);
-                d.setAssignedPlanifAt(null);
                 d.setAssignedJ(null);
                 d.setAssignedJAt(null);
                 touched.add(d);
@@ -256,6 +255,10 @@ public class BatchService {
         dossierRepository.saveAll(touched);
         eventRepository.saveAll(events);
         progressService.refresh(touched);
+        // a cancelled dossier has nobody on it any more
+        for (int i = 0; i < plan.cancelled().size(); i += CHUNK) {
+            workerRepository.deleteByDossierIds(plan.cancelled().subList(i, Math.min(i + CHUNK, plan.cancelled().size())));
+        }
         return plan.cancelled().size();
     }
 

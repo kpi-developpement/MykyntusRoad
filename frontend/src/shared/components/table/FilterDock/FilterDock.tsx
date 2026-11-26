@@ -3,7 +3,17 @@
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ListFilter, X } from "lucide-react";
-import { DELAY_LABELS, PROGRESS_LABELS, SECTION_LABELS, type ColumnFilter, type Delay, type FieldSection, type ProgressStatus } from "../../../types";
+import {
+  DELAY_LABELS,
+  PROGRESS_LABELS,
+  SECTION_LABELS,
+  SECU_ALERT_LABELS,
+  type ColumnFilter,
+  type Delay,
+  type FieldSection,
+  type ProgressStatus,
+  type SecuAlert,
+} from "../../../types";
 import { formatDate } from "../../../utils/date";
 import type { GridColumn } from "../DataGrid/types";
 import { OP_LABELS } from "../FilterPopover/ConditionFilter";
@@ -23,9 +33,11 @@ export function filterLabel<T>(f: ColumnFilter, column?: GridColumn<T>): string 
   if (column) return column.label;
   if (f.key === "batch") return "Fichier";
   if (f.key === "delay") return "Délai";
-  if (f.key === "route") return "Équipe J-1";
+  if (f.key === "route") return "Cellule plani";
+  if (f.key === "secu") return "Sécurisation";
+  if (f.key === "flags") return "Drapeaux";
   if (f.key.startsWith("status:")) return `Avancement ${SECTION_LABELS[f.key.slice(7) as FieldSection] ?? ""}`;
-  if (f.key.startsWith("assignee")) return "Attribué à";
+  if (f.key.startsWith("assignee")) return "Pilote";
   return f.key;
 }
 
@@ -39,7 +51,9 @@ export function filterValue<T>(f: ColumnFilter, column?: GridColumn<T>): string 
   if (f.op && f.text) return `${OP_LABELS[f.op].toLowerCase()} « ${f.text} »`;
   if (f.text) return `contient « ${f.text} »`;
   const values = (f.values ?? []).map((v) => {
-    if (v === "") return "(Vides)";
+    if (v === "") return f.key.startsWith("assignee") ? "Personne" : "(Vides)";
+    if (f.key === "route") return v === "PLANIFICATION" ? "Ouvert" : "Planifié";
+    if (f.key === "secu") return SECU_ALERT_LABELS[v as SecuAlert] ?? v;
     if (f.key === "batch") return `n° ${v}`;
     if (f.key === "delay") return DELAY_LABELS[v as Delay] ?? v;
     if (f.key.startsWith("status:")) return PROGRESS_LABELS[v as ProgressStatus] ?? v;

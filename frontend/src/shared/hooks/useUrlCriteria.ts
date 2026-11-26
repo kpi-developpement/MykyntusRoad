@@ -6,8 +6,8 @@ import { assigneeKey, type ColumnFilter, type Team } from "../types";
 
 /**
  * Table criteria given in the address (links of the dashboard and of the files page):
- * ?date=yyyy-MM-dd ("" = every date), ?batch=<file id>, ?delay=LATE|SOON|ON_TIME|DONE|CANCELLED, ?route=PLANIFICATION,
- * ?pilot=<username>&team=SECURISATION|PLANIFICATION|J.
+ * ?date=yyyy-MM-dd ("" = every date), ?batch=<file id>, ?delay=LATE|SOON|ON_TIME|DONE|CANCELLED,
+ * ?route=PLANIFICATION (Cellule plani open), ?secu=J_MINUS_1,J (sécurisation missing), ?pilot=<username>&team=SECURISATION|J.
  */
 export function useUrlCriteria(defaultDate: string) {
   const params = useSearchParams();
@@ -20,10 +20,13 @@ export function useUrlCriteria(defaultDate: string) {
     const delay = p.get("delay");
     if (delay) filters.push({ key: "delay", values: delay.split(",") });
     // ?pilot=<username>&team=J : the dossiers of one pilot (links of the dispatch page)
+    // ?pilot= (empty) : nobody on the dossier
     const pilot = p.get("pilot");
-    if (pilot) filters.push({ key: assigneeKey((p.get("team") as Team) || "SECURISATION"), values: [pilot] });
+    if (pilot !== null) filters.push({ key: assigneeKey((p.get("team") as Team) || "SECURISATION"), values: [pilot] });
     const route = p.get("route");
     if (route) filters.push({ key: "route", values: [route] });
+    const secu = p.get("secu");
+    if (secu) filters.push({ key: "secu", values: secu.split(",") });
     // a file spans several dates: show them all unless a date is given
     const date = p.has("date") ? (p.get("date") ?? "") : batch ? "" : defaultDate;
     return { date, filters, batch: batch ? Number(batch) : null, key };

@@ -70,19 +70,16 @@ public class Dossier {
 
     private LocalDateTime assignedAt;
 
-    /** Username of the planification agent (dossiers not "Planifié"). */
-    @Column(length = 100)
-    private String assignedPlanif;
-
-    private LocalDateTime assignedPlanifAt;
-
-    /** Username of the J / J+1 agent. */
+    /** Username of the first J-1 / J / J+1 pilot who took the dossier (other pilots: {@link DossierWorker}). */
     @Column(length = 100)
     private String assignedJ;
 
     private LocalDateTime assignedJAt;
 
-    /** "Cellule plani" filled with something else than "Planifié": the J-1 columns go to the planification team. */
+    /**
+     * "Cellule plani" set to something else than "Planifié" (e.g. "Ouvert"): the conditional J-1 columns
+     * (Commentaire, Mail / Teams, Mail and their "Objet") open for this dossier.
+     */
     private Boolean routedPlanif;
 
     /** In the admin's file but in no sécurisation file: sécurisation columns set to N/A. */

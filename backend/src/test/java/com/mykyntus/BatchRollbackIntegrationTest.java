@@ -90,10 +90,12 @@ class BatchRollbackIntegrationTest {
 
         // pilot alert: new dossiers dispatched to him
         LocalDateTime before = LocalDateTime.now().minusSeconds(1);
-        dispatchService.assign(Team.J, new AssignRequest(List.of(row("EPS-RB-0002").id()), "a.guengombe"), "admin");
-        DashboardService.Work work = dashboardService.work(new CurrentUser("a.guengombe", Role.PILOTE_J), before);
-        assertThat(work.team()).isEqualTo("J");
+        dispatchService.assign(Team.SECURISATION, new AssignRequest(List.of(row("EPS-RB-0002").id()), "pilote.secu"), "admin.secu");
+        DashboardService.Work work = dashboardService.work(new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION), before);
+        assertThat(work.team()).isEqualTo("SECURISATION");
         assertThat(work.fresh()).isGreaterThanOrEqualTo(1);
+        // the J pilots take their dossiers themselves: no dispatch alert
+        assertThat(dashboardService.work(new CurrentUser("a.guengombe", Role.PILOTE_J), before).team()).isNull();
         assertThat(dashboardService.work(admin, before).team()).isNull();
     }
 

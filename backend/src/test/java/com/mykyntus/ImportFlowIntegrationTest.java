@@ -74,14 +74,18 @@ class ImportFlowIntegrationTest {
         AppFieldResponse cellulePlani = field(table, "j1_cellule_plani");
         CurrentUser pilote = new CurrentUser("pilote.secu", Role.PILOTE_SECURISATION);
         CurrentUser secAdmin = new CurrentUser("admin.secu", Role.ADMIN_SECURISATION);
-        // a pilot only edits the dossiers dispatched to him
-        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "Planifié", pilote))
+        CurrentUser mainAdmin = new CurrentUser("admin", Role.ADMIN);
+        // every injected dossier is "Planifié"; J-1 belongs to the admin and the J pilots, not to the sécurisation
+        assertThat(row.values()).containsEntry(cellulePlani.id(), "Planifié");
+        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "Ouvert", pilote))
                 .isInstanceOf(ApiException.class);
-        assertThat(valueService.updateValue(row.id(), cellulePlani.id(), "Planifié", secAdmin).value())
-                .isEqualTo("Planifié");
+        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "Ouvert", secAdmin))
+                .isInstanceOf(ApiException.class);
+        assertThat(valueService.updateValue(row.id(), cellulePlani.id(), "Ouvert", mainAdmin).value())
+                .isEqualTo("Ouvert");
 
         // value not in the dropdown
-        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "xxx", secAdmin))
+        assertThatThrownBy(() -> valueService.updateValue(row.id(), cellulePlani.id(), "xxx", mainAdmin))
                 .isInstanceOf(ApiException.class);
 
         // pilote sécurisation cannot edit J section
@@ -96,7 +100,7 @@ class ImportFlowIntegrationTest {
         assertThat(again.createdRows()).isZero();
         DossierTableResponse after = dossierService.search(
                 new DossierSearchRequest(null, "EPS-0022050200", List.of(), null, 0, 50));
-        assertThat(after.rows().content().getFirst().values()).containsEntry(cellulePlani.id(), "Planifié");
+        assertThat(after.rows().content().getFirst().values()).containsEntry(cellulePlani.id(), "Ouvert");
 
         assertColumnFilters(cellulePlani.id());
         assertSecurisation(row.id());
@@ -132,18 +136,21 @@ class ImportFlowIntegrationTest {
         assertThatThrownBy(() -> valueService.updateValue(dossierId, etat.id(), "Sécurisé", secPilot)).isInstanceOf(ApiException.class);
         dispatchService.assign(Team.SECURISATION, new AssignRequest(List.of(dossierId), "pilote.secu"), "admin.secu");
         assertThat(valueService.updateValue(dossierId, etat.id(), "Sécurisé", secPilot).value()).isEqualTo("Sécurisé");
-        // "Date de traitement" filled automatically by the first sécurisation value ("Cellule plani")
+        // "Date de traitement" = date the file was imported, never entered by hand
+        assertThat(date.auto()).isTrue();
         assertThat(dossierService.search(new DossierSearchRequest(null, "EPS-0022050200", List.of(), null, 0, 5))
-                .rows().content().getFirst().values()).containsKey(date.id());
+                .rows().content().getFirst().values()).containsEntry(date.id(), LocalDate.now().toString());
         valueService.updateValue(dossierId, etat.id(), "Reporté", secPilot);
 
         DossierTimelineResponse timeline = timelineService.timeline(dossierId);
         assertThat(timeline.stages()).extracting(DossierTimelineResponse.Stage::key)
-                .containsExactly("IMPORT", "SECURISATION", "J", "J_PLUS_1");
-        assertThat(timeline.stages().get(1).status()).isEqualTo("CURRENT");
+                .containsExactly("IMPORT", "SECURISATION", "J_MINUS_1", "J", "J_PLUS_1");
+        // Cellule plani set to "Ouvert" by the admin: J-1 is the last stage reached
+        assertThat(timeline.stages().get(1).status()).isEqualTo("DONE");
+        assertThat(timeline.stages().get(2).status()).isEqualTo("CURRENT");
         assertThat(timeline.stages().get(1).detail()).contains("Etat final : Reporté");
         assertThat(timeline.stages().get(1).fields()).anyMatch(f -> f.label().equals("Etat final") && "Reporté".equals(f.value()));
-        assertThat(timeline.stages().get(2).status()).isEqualTo("PENDING");
+        assertThat(timeline.stages().get(3).status()).isEqualTo("PENDING");
         assertThat(timeline.mails()).extracting(DossierTimelineResponse.Mail::label).contains("Mail / Teams", "Mail");
         assertThat(timeline.edits()).isEqualTo(1);
         assertThat(timeline.events()).extracting(DossierTimelineResponse.Event::type)
@@ -183,7 +190,7 @@ class ImportFlowIntegrationTest {
         }
     }
 
-    /** Server side filters / sort / facets / stats (dossier 1 = RACC_P_RE + Planifié, dossier 2 = RACC_P_N + empty). */
+    /** Server side filters / sort / facets / stats (dossier 1 = RACC_P_RE + Ouvert, dossier 2 = RACC_P_N + Planifié by default). */
     private void assertColumnFilters(Long fieldId) {
         String type = "raw:Type de travail";
         String field = "field:" + fieldId;
@@ -192,12 +199,12 @@ class ImportFlowIntegrationTest {
                 .containsExactly("EPS-0022089644");
         assertThat(ids(criteria(List.of(new ColumnFilter(type, null, "p_r")), null)))
                 .containsExactly("EPS-0022050200");
-        assertThat(ids(criteria(List.of(new ColumnFilter(field, List.of("Planifié"), null)), null)))
+        assertThat(ids(criteria(List.of(new ColumnFilter(field, List.of("Ouvert"), null)), null)))
                 .containsExactly("EPS-0022050200");
-        assertThat(ids(criteria(List.of(new ColumnFilter(field, List.of(""), null)), null)))
+        assertThat(ids(criteria(List.of(new ColumnFilter(field, List.of("Planifié"), null)), null)))
                 .containsExactly("EPS-0022089644");
         assertThat(ids(criteria(List.of(
-                new ColumnFilter(field, List.of(""), null),
+                new ColumnFilter(field, List.of("Planifié"), null),
                 new ColumnFilter(type, List.of("RACC_P_RE"), null)), null)))
                 .isEmpty();
 
@@ -214,14 +221,14 @@ class ImportFlowIntegrationTest {
                 criteria(List.of(new ColumnFilter(type, List.of("RACC_P_N"), null)), null), type, null, null));
         assertThat(typeFacets.values()).extracting(FacetValue::value).containsExactlyInAnyOrder("RACC_P_N", "RACC_P_RE");
         FacetResponse fieldFacets = dossierService.facets(new FacetRequest(criteria(List.of(), null), field, null, null));
-        assertThat(fieldFacets.values()).containsExactly(new FacetValue("Planifié", 1));
-        assertThat(fieldFacets.emptyCount()).isEqualTo(1);
+        assertThat(fieldFacets.values()).containsExactly(new FacetValue("Ouvert", 1), new FacetValue("Planifié", 1));
+        assertThat(fieldFacets.emptyCount()).isZero();
         FacetResponse dateFacets = dossierService.facets(new FacetRequest(criteria(List.of(), null), "date", null, null));
         assertThat(dateFacets.values()).containsExactly(new FacetValue("2026-11-20", 2));
 
         DossierStatsResponse stats = dossierService.stats(criteria(List.of(), null));
         assertThat(stats.total()).isEqualTo(2);
-        // both: "Cellule plani" on the first one, N/A on both (no sécurisation file imported yet)
+        // both: N/A on both (no sécurisation file imported yet); the import defaults do not count
         assertThat(stats.sections()).filteredOn(s -> s.section() == FieldSection.SECURISATION)
                 .singleElement().extracting(DossierStatsResponse.SectionStat::treated).isEqualTo(2L);
 

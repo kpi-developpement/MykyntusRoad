@@ -17,5 +17,9 @@ public enum EventType {
     /** Dossier assigned to a sécurisation pilot (dispatch) or unassigned. */
     ASSIGNED,
     /** The values brought by a file were removed (import cancelled). */
-    IMPORT_CANCELLED
+    IMPORT_CANCELLED,
+    /** A pilot took the dossier / joined the pilots already working on it. */
+    JOINED,
+    /** A pilot stopped working on the dossier. */
+    LEFT
 }

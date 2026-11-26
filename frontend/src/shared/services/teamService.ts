@@ -2,7 +2,7 @@ import { api } from "./api";
 import { toBody } from "./dossierService";
 import type { DispatchResult, DispatchSummary, DossierCriteria, Pilote, Team } from "../types";
 
-/** Pilots and dispatch of a team (sécurisation: sécurisation admin; planification and J: admin). */
+/** Pilots of a team, and the dispatch of the sécurisation team (sécurisation admin). */
 export const teamService = {
   pilotes: (team: Team) => api.get<Pilote[]>(`/api/teams/${team}/pilotes`),
   summary: (team: Team, criteria: DossierCriteria) => api.post<DispatchSummary>(`/api/teams/${team}/dispatch/summary`, toBody(criteria)),

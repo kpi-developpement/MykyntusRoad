@@ -122,20 +122,19 @@ export function useDossierGrid({ initialDate, initialSearch = "", initialFilters
     const res = await dossierService.updateValue(dossierId, fieldId, value);
     setTable((prev) => {
       if (!prev.data) return prev;
+      let openDelta = 0;
       const content = prev.data.rows.content.map((row) => {
         if (row.id !== dossierId) return row;
         const values = { ...row.values, ...res.autoFilled };
         if (res.value === null) delete values[fieldId];
         else values[fieldId] = res.value;
-        // "Cellule plani" decides who works the J-1 columns (same rule as the server)
-        const field = prev.data?.fields.find((f) => f.id === fieldId);
-        if (field?.code === "j1_cellule_plani") {
-          const v = (res.value ?? "").normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
-          return { ...row, values, planification: v !== "" && v !== "planifie" };
-        }
-        return { ...row, values };
+        // "Cellule plani" opens / closes the conditional J-1 columns of the dossier (answer of the server)
+        const open = typeof res.open === "boolean" ? res.open : row.planification;
+        if (open !== row.planification) openDelta = open ? 1 : -1;
+        return { ...row, values, planification: open };
       });
-      return { ...prev, data: { ...prev.data, rows: { ...prev.data.rows, content } } };
+      const openCount = Math.max(0, (prev.data.openCount ?? 0) + openDelta);
+      return { ...prev, data: { ...prev.data, openCount, rows: { ...prev.data.rows, content } } };
     });
     if (statsTimer.current) clearTimeout(statsTimer.current);
     statsTimer.current = setTimeout(() => setStatsToken((t) => t + 1), 700);
@@ -150,6 +149,11 @@ export function useDossierGrid({ initialDate, initialSearch = "", initialFilters
       const content = prev.data.rows.content.map((row) => (row.id === dossierId ? { ...row, ...patch } : row));
       return { ...prev, data: { ...prev.data, rows: { ...prev.data.rows, content } } };
     });
+  }, []);
+
+  /** Display names learnt after the load (a pilot who just took / joined a dossier). */
+  const addNames = useCallback((names: Record<string, string>) => {
+    setTable((prev) => (prev.data ? { ...prev, data: { ...prev.data, names: { ...(prev.data.names ?? {}), ...names } } } : prev));
   }, []);
 
   /** Refreshes the counters (after a change that may move a dossier in or out of a filter). */
@@ -179,6 +183,7 @@ export function useDossierGrid({ initialDate, initialSearch = "", initialFilters
     saveValue,
     loadFacets,
     patchRow,
+    addNames,
     refreshStats,
     statsToken,
   };

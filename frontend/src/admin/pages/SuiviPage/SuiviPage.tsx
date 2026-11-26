@@ -1,17 +1,14 @@
 "use client";
 
 import { CloudUpload, LayoutDashboard } from "lucide-react";
-import { PlanifBanner } from "@/admin/components/planif/PlanifBanner/PlanifBanner";
 import { LinkButton } from "@/shared/components/button/LinkButton/LinkButton";
 import { SuiviView } from "@/shared/pages/SuiviView/SuiviView";
 import { useUrlCriteria } from "@/shared/hooks/useUrlCriteria";
 import type { Team } from "@/shared/types";
 import { tomorrow } from "@/shared/utils/date";
 
-const TEAMS: { team: Team; editable: boolean }[] = [
-  { team: "PLANIFICATION", editable: true },
-  { team: "J", editable: true },
-];
+/** The admin works with the pilots: no dispatch, he can take / join a dossier like them. */
+const TEAMS: { team: Team; dispatch?: boolean }[] = [{ team: "J" }];
 
 export function SuiviPage() {
   const url = useUrlCriteria(tomorrow());
@@ -25,13 +22,13 @@ export function SuiviPage() {
       gridId="admin-suivi"
       eyebrow="Pilotage"
       title="Suivi des dossiers"
-      description="Vue complète Sécurisation / Planification / J / J+1. L'EPS passe en orange le J+1 au matin et en rouge après J+1 12h00 s'il n'est pas clôturé."
+      description="J-1 / J / J+1 et l'état final de la sécurisation. Chaque dossier arrive « Planifié » : passez la Cellule plani à « Ouvert » pour ouvrir ses colonnes J-1. L'EPS passe en orange le J+1 au matin et en rouge après J+1 12h00 s'il n'est pas clôturé."
       icon={<LayoutDashboard />}
       key={url.key}
       initialDate={url.date}
       initialFilters={url.filters}
       teams={TEAMS}
-      renderBanner={(grid) => <PlanifBanner grid={grid} />}
+      secuAlert
       actions={importButton}
       emptyAction={importButton}
     />

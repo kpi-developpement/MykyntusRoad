@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Dispatch of a team's work between its pilots (sécurisation, planification or J agents).
+ * Dispatch of the sécurisation work between its pilots (the J pilots take their dossiers themselves).
  * <p>
  * Equitable on two levels: every pilot ends with the same number of dossiers to treat (± 1, current
  * loads included), and each kind of dossier (P1, P2, GEM, TH...) is spread evenly, so nobody gets all the
@@ -45,6 +45,7 @@ public class DispatchService {
     private final DossierEventRepository eventRepository;
     private final PiloteService piloteService;
     private final DossierProgressService progressService;
+    private final com.mykyntus.repository.DossierWorkerRepository workerRepository;
 
     @PersistenceContext
     private EntityManager em;
@@ -237,11 +238,7 @@ public class DispatchService {
                 events.add(DossierEvent.builder()
                         .dossier(dossierRepository.getReferenceById(id))
                         .type(EventType.ASSIGNED)
-                        .section(switch (team) {
-                            case SECURISATION -> FieldSection.SECURISATION;
-                            case PLANIFICATION -> FieldSection.PLANIFICATION;
-                            case J -> FieldSection.J;
-                        })
+                        .section(team.section())
                         .fieldLabel(team.label())
                         .oldValue(old == null ? null : name(old, active))
                         .newValue(pilote == null ? null : name(pilote, active))
@@ -250,6 +247,19 @@ public class DispatchService {
                         .build());
             }
             moved += ids.size();
+            // the previous lead no longer works on the moved dossiers
+            Map<String, List<Long>> byOld = new HashMap<>();
+            for (Long id : ids) {
+                String old = before.get(id);
+                if (old != null) {
+                    byOld.computeIfAbsent(old, k -> new ArrayList<>()).add(id);
+                }
+            }
+            byOld.forEach((old, list) -> {
+                for (int i = 0; i < list.size(); i += CHUNK) {
+                    workerRepository.deleteWorker(team, old, list.subList(i, Math.min(i + CHUNK, list.size())));
+                }
+            });
         }
         for (int i = 0; i < events.size(); i += CHUNK) {
             eventRepository.saveAll(events.subList(i, Math.min(i + CHUNK, events.size())));

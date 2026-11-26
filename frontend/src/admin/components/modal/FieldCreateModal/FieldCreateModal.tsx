@@ -47,6 +47,8 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
   const [type, setType] = useState<FieldType>("SELECT");
   const [values, setValues] = useState<string[]>([]);
   const [published, setPublished] = useState(false);
+  // a new J-1 column opens with Cellule plani "Ouvert" (like Commentaire, Mail...)
+  const [conditional, setConditional] = useState(true);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -54,14 +56,12 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
     if (!label.trim()) return;
     setBusy(true);
     try {
-      // the J-1 tab holds sécurisation columns flagged J-1
-      const j1 = section === "J_MINUS_1";
       const field = await fieldService.create({
         label: label.trim(),
-        section: j1 ? "SECURISATION" : section,
+        section,
         type,
         published: section === "SECURISATION" && published,
-        planification: j1,
+        planification: section === "J_MINUS_1" && conditional,
       });
       if (type === "SELECT") {
         for (const value of values) await fieldService.addOption(field.id, { value });
@@ -111,9 +111,13 @@ function CreateForm({ sections, defaultSection, onClose, onCreated, onError }: O
         </div>
       )}
       {section === "J_MINUS_1" && (
-        <p className="rounded-2xl bg-violet-50/60 px-4 py-3 text-xs text-slate-600 ring-1 ring-violet-100">
-          Colonne J-1 : saisie par la sécurisation quand la « Cellule plani » est « Planifié », sinon par la planification.
-        </p>
+        <div className="flex items-center justify-between gap-4 rounded-2xl bg-violet-50/60 px-4 py-3 ring-1 ring-violet-100">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Seulement si Cellule plani « Ouvert »</p>
+            <p className="text-xs text-slate-500">Cachée pour les dossiers « Planifié » (valeur par défaut à l&apos;import), comme Commentaire ou Mail.</p>
+          </div>
+          <Switch1 checked={conditional} onChange={setConditional} />
+        </div>
       )}
       <AnimatePresence initial={false}>
         {type === "SELECT" && (

@@ -21,6 +21,11 @@ public interface DossierRepository extends JpaRepository<Dossier, Long> {
     @Query("select count(d) > 0 from Dossier d where d.complete is null")
     boolean anyWithoutProgress();
 
+    /** Dossiers (not cancelled) without any value in this application column. */
+    @Query("select d.id from Dossier d where (d.cancelled is null or d.cancelled = false) "
+            + "and not exists (select 1 from DossierFieldValue v where v.dossier = d and v.field.id = :fieldId)")
+    List<Long> findIdsWithoutValue(@Param("fieldId") Long fieldId);
+
     @Query("select d.id from Dossier d where d.flags is null")
     List<Long> findIdsWithoutFlags();
 
@@ -34,10 +39,6 @@ public interface DossierRepository extends JpaRepository<Dossier, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Dossier d set d.assignedTo = null, d.assignedAt = null where d.assignedTo = :pilote")
     int unassignAll(@Param("pilote") String pilote);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("update Dossier d set d.assignedPlanif = null, d.assignedPlanifAt = null where d.assignedPlanif = :pilote")
-    int unassignAllPlanif(@Param("pilote") String pilote);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Dossier d set d.assignedJ = null, d.assignedJAt = null where d.assignedJ = :pilote")

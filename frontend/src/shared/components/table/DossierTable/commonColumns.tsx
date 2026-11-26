@@ -1,75 +1,62 @@
 "use client";
 
-import { useFlags } from "../../../hooks/useFlags";
 import { DELAY_LABELS, TEAM_LABELS, assigneeKey, assigneeOf, type Delay, type DossierRow, type Pilote, type SourceColumn, type Team } from "../../../types";
 import { DelayBadge } from "../../dossier/DelayBadge/DelayBadge";
 import { formatDate, weekdayShort } from "../../../utils/date";
 import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
-import { AssigneeCell, piloteName } from "../../dossier/AssigneeCell/AssigneeCell";
+import { AssigneeCell } from "../../dossier/AssigneeCell/AssigneeCell";
 import { IdCell } from "../../dossier/IdCell/IdCell";
-import { FlagBadge } from "../../flag/FlagBadge/FlagBadge";
-import { FlagCell } from "../../flag/FlagCell/FlagCell";
+import { PilotsCell } from "../../dossier/PilotsCell/PilotsCell";
+import type { FlagCellActions } from "../../flag/FlagCell/FlagCell";
 import type { GridColumn } from "../DataGrid/types";
 
-function FlagValue({ code }: { code: string }) {
-  const { byCode } = useFlags();
-  return <FlagBadge code={code} flag={byCode.get(code)} withLabel />;
+/** Flags shown in the ID cell (editable by the sécurisation and the admin). */
+export type FlagColumnOptions = FlagCellActions;
+
+export interface PilotColumnOptions {
+  team: Team;
+  /** Display name of a username. */
+  nameOf: (username: string) => string;
+  /** Connected user. */
+  me: string;
+  /** The connected user takes / joins the dossiers of this team (click = confirmation). */
+  canJoin: boolean;
+  onOpenJoin?: (row: DossierRow, team: Team) => void;
+  /** Dispatch of the team changed in one click (sécurisation admin). */
+  dispatch?: { pilotes: Pilote[] | null; onAssign: (row: DossierRow, pilote: string | null, team: Team) => Promise<void> } | null;
 }
 
-export interface FlagColumnOptions {
-  editable: boolean;
-  codes: string[];
-  onApply: (row: DossierRow, codes: string[]) => Promise<void>;
-  onReset: (row: DossierRow) => Promise<void>;
-}
-
-/** Column "Drapeaux": automatic flags, editable by hand, filterable. */
-export function flagsColumn({ editable, codes, onApply, onReset }: FlagColumnOptions): GridColumn<DossierRow> {
-  return {
-    key: "flags",
-    label: "Drapeaux",
-    filterKind: "enum",
-    width: 210,
-    sortable: true,
-    filterable: true,
-    knownValues: codes,
-    renderValue: (v) => <FlagValue code={v} />,
-    render: (row) => <FlagCell row={row} editable={editable} onApply={onApply} onReset={onReset} />,
-  };
-}
-
-export interface AssigneeColumnOptions {
-  /** Team whose assignment is shown (default: sécurisation). */
-  team?: Team;
-  pilotes: Pilote[] | null;
-  editable: boolean;
-  onAssign: (row: DossierRow, pilote: string | null, team: Team) => Promise<void>;
-}
-
-/** Column "Pilote sécurisation" / "Agent planification" / "Agent J / J+1" (dispatch). */
-export function assigneeColumn({ team = "SECURISATION", pilotes, editable, onAssign }: AssigneeColumnOptions): GridColumn<DossierRow> {
+/** Column "Pilote": who works the dossier (lead + pilots who joined), take / join in one click. */
+export function pilotsColumn({ team, nameOf, me, canJoin, onOpenJoin, dispatch }: PilotColumnOptions): GridColumn<DossierRow> {
+  const label = (v: string) => nameOf(v);
   return {
     key: assigneeKey(team),
     label: TEAM_LABELS[team],
     filterKind: "enum",
-    width: 190,
+    width: 210,
     sortable: true,
     filterable: true,
-    formatValue: (v) => piloteName(v, pilotes),
+    bright: true,
+    formatValue: label,
     renderValue: (v) => (
       <span className="inline-flex items-center gap-1.5">
-        <Avatar1 name={piloteName(v, pilotes)} size="sm" className="size-5 text-[8px]" />
-        {piloteName(v, pilotes)}
+        <Avatar1 name={label(v)} size="sm" className="size-5 text-[8px]" />
+        {label(v)}
       </span>
     ),
-    render: (row) => (
-      <AssigneeCell
-        assignee={assigneeOf(row, team)}
-        pilotes={pilotes}
-        editable={editable}
-        onAssign={(pilote) => onAssign(row, pilote, team)}
-      />
-    ),
+    render: (row) =>
+      dispatch ? (
+        <AssigneeCell
+          assignee={assigneeOf(row, team)}
+          joined={row.workers?.[team] ?? []}
+          nameOf={nameOf}
+          pilotes={dispatch.pilotes}
+          editable
+          onAssign={(pilote) => dispatch.onAssign(row, pilote, team)}
+        />
+      ) : (
+        <PilotsCell row={row} team={team} nameOf={nameOf} me={me} canJoin={canJoin} onOpen={onOpenJoin} />
+      ),
   };
 }
 
@@ -121,16 +108,20 @@ export function dateColumn(pinned = true): GridColumn<DossierRow> {
   };
 }
 
-/** Column "Ordre de travail : ID Externe": click = life cycle, hover 3 s = road map. */
-export function idColumn(onOpen?: (row: DossierRow) => void): GridColumn<DossierRow> {
+/**
+ * Column "Ordre de travail : ID Externe" with the flags of the dossier attached to it (they always stay
+ * next to the ID, whatever the order of the columns). Click = life cycle, hover 3 s = road map.
+ */
+export function idColumn(onOpen?: (row: DossierRow) => void, flags?: FlagColumnOptions | null): GridColumn<DossierRow> {
   return {
     key: "idExterne",
-    label: "Ordre de travail : ID Externe",
-    width: 214,
+    label: flags ? "ID Externe · drapeaux" : "Ordre de travail : ID Externe",
+    width: flags ? 318 : 214,
     pinned: true,
     sortable: true,
     filterable: true,
-    render: (row) => <IdCell row={row} onOpen={onOpen} />,
+    bright: true,
+    render: (row) => <IdCell row={row} onOpen={onOpen} flags={flags} />,
   };
 }
 
@@ -168,32 +159,4 @@ export const ID_EXTERNE_HEADER = "ordre de travail: id externe";
 
 export function isIdExterneColumn(name: string): boolean {
   return name.trim().toLowerCase().replace(/\s+/g, " ") === ID_EXTERNE_HEADER;
-}
-
-/** Column "Équipe J-1": who works the J-1 columns (Planification when "Cellule plani" is not "Planifié"). */
-export function routeColumn(): GridColumn<DossierRow> {
-  const label = (v: string) => (v === "PLANIFICATION" ? "Planification" : "Sécurisation");
-  const chip = (v: string) => (
-    <span
-      className={
-        v === "PLANIFICATION"
-          ? "rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200"
-          : "rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-200"
-      }
-    >
-      {label(v)}
-    </span>
-  );
-  return {
-    key: "route",
-    label: "Équipe J-1",
-    filterKind: "enum",
-    width: 150,
-    sortable: true,
-    filterable: true,
-    knownValues: ["PLANIFICATION", "SECURISATION"],
-    formatValue: label,
-    renderValue: chip,
-    render: (row) => <span className="flex h-8 items-center px-1">{chip(row.planification ? "PLANIFICATION" : "SECURISATION")}</span>,
-  };
 }

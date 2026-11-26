@@ -1,10 +1,6 @@
-import { Suspense } from "react";
-import { DispatchPage } from "@/admin/pages/DispatchPage/DispatchPage";
+import { redirect } from "next/navigation";
 
+/** The admin no longer dispatches: the pilots take their dossiers themselves (column "Pilote"). */
 export default function Page() {
-  return (
-    <Suspense>
-      <DispatchPage />
-    </Suspense>
-  );
+  redirect("/admin/suivi");
 }

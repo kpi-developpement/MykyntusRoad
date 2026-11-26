@@ -85,7 +85,8 @@ function DossierData({ row, columns, fields }: { row: DossierRow; columns: Sourc
         </h4>
         <div className="space-y-3">
           {SECTIONS.map((section) => {
-            const list = fields.filter((f) => f.section === section);
+            // the conditional J-1 columns only exist once Cellule plani is "Ouvert"
+            const list = fields.filter((f) => f.section === section && (!f.planification || row.planification));
             if (list.length === 0) return null;
             return (
               <div key={section} className={cn("overflow-hidden rounded-2xl ring-1", SECTION_THEME[section].ring)}>

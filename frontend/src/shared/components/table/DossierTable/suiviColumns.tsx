@@ -1,4 +1,4 @@
-import { Eye, Lock } from "lucide-react";
+import { Eye, FolderOpen, Lock } from "lucide-react";
 import type { AppField, DataSource, DossierRow, DossierStats, DossierTable, FieldSection } from "../../../types";
 import { SECTION_LABELS, SECTIONS, SOURCE_LABELS } from "../../../types";
 import { SECTION_THEME, sourceGroup } from "../../../utils/sectionTheme";
@@ -6,16 +6,14 @@ import { ValueChip } from "../../badge/ValueChip/ValueChip";
 import { ValuePicker } from "../../select/ValuePicker/ValuePicker";
 import type { GridColumn, GridGroup } from "../DataGrid/types";
 import {
-  assigneeColumn,
   dateColumn,
   delayColumn,
-  flagsColumn,
   idColumn,
   isIdExterneColumn,
+  pilotsColumn,
   rawColumn,
-  routeColumn,
-  type AssigneeColumnOptions,
   type FlagColumnOptions,
+  type PilotColumnOptions,
 } from "./commonColumns";
 
 interface SuiviColumnsOptions {
@@ -29,37 +27,37 @@ interface SuiviColumnsOptions {
   rawHidden: boolean;
   onSave: (dossierId: number, fieldId: number, value: string | null) => Promise<void>;
   onOpen: (row: DossierRow) => void;
-  /** "Drapeaux" column. */
+  /** Flags attached to the ID Externe. */
   flags?: FlagColumnOptions | null;
-  /** Assignment columns (one per team shown). */
-  assignees?: AssigneeColumnOptions[];
-  /** A pilot only edits the dossiers dispatched to him: the others stay read only. */
+  /** "Pilote" columns (one per team shown). */
+  pilots?: PilotColumnOptions[];
+  /** A pilot only edits the dossiers he works on: the others stay read only. */
   canEditRow?: (row: DossierRow) => boolean;
+  /** Column keys with an active filter / sort: kept even when they would be hidden. */
+  activeKeys?: Set<string>;
 }
 
 /** The 3 sécurisation files come last, after the work columns. */
 const LAST_SOURCES: DataSource[] = ["SEC_1", "SEC_2", "SEC_3"];
 
-/** Section a column belongs to for this dossier: a J-1 column goes to Planification when the dossier is not "Planifié". */
-export function effectiveSection(field: AppField, row: DossierRow): FieldSection {
-  return field.planification && row.planification ? "PLANIFICATION" : field.section;
-}
-
 /** Columns of a header group. */
 function groupFields(data: DossierTable | null, section: FieldSection, sections: FieldSection[]): AppField[] {
   const fields = data?.fields ?? [];
   const full = sections.includes(section);
-  if (section === "PLANIFICATION") return full ? fields.filter((f) => f.planification) : [];
-  if (section === "SECURISATION") {
-    // J-1 columns stay with Sécurisation unless the screen shows a Planification group
-    return fields.filter((f) => f.section === section && (full ? !(f.planification && sections.includes("PLANIFICATION")) : f.published && !f.planification));
-  }
   return fields.filter((f) => f.section === section && (full || f.published));
 }
 
 /**
- * Columns of a follow-up table: Date | ID Externe | Délai | Équipe J-1 | Drapeaux | assignments |
- * application columns grouped by service (Sécurisation, Planification, J, J+1) | imported columns | sécurisation files 1-3.
+ * The conditional J-1 columns (Commentaire, Mail / Teams, Mail and their "Objet") only exist for the
+ * dossiers whose Cellule plani was set to "Ouvert": hidden as long as no dossier of the table is open.
+ */
+export function hasOpenDossiers(data: DossierTable | null): boolean {
+  return (data?.openCount ?? 0) > 0 || (data?.rows.content ?? []).some((r) => r.planification);
+}
+
+/**
+ * Columns of a follow-up table: Date | ID Externe + drapeaux | Délai | Pilote(s) |
+ * application columns grouped by service (Sécurisation, J-1, J, J+1) | imported columns | sécurisation files 1-3.
  */
 export function buildSuiviColumns({
   data,
@@ -70,13 +68,13 @@ export function buildSuiviColumns({
   onSave,
   onOpen,
   flags,
-  assignees = [],
+  pilots = [],
   canEditRow,
+  activeKeys,
 }: SuiviColumnsOptions): GridColumn<DossierRow>[] {
-  const columns: GridColumn<DossierRow>[] = [dateColumn(), idColumn(onOpen), delayColumn()];
-  if (sections.includes("PLANIFICATION") || sections.includes("SECURISATION")) columns.push(routeColumn());
-  if (flags) columns.push(flagsColumn(flags));
-  for (const a of assignees) columns.push(assigneeColumn(a));
+  const columns: GridColumn<DossierRow>[] = [dateColumn(), idColumn(onOpen, flags), delayColumn()];
+  for (const p of pilots) columns.push(pilotsColumn(p));
+  const open = hasOpenDossiers(data);
 
   const raw = (sources: DataSource[]) => {
     for (const sc of data?.sourceColumns ?? []) {
@@ -89,9 +87,12 @@ export function buildSuiviColumns({
   for (const section of SECTIONS) {
     const full = sections.includes(section);
     for (const field of groupFields(data, section, sections)) {
+      const key = `field:${field.id}`;
+      // conditional J-1 column: only once a dossier is "Ouvert" (or while it is filtered / sorted)
+      if (field.planification && !open && !activeKeys?.has(key)) continue;
       const select = field.type === "SELECT";
       columns.push({
-        key: `field:${field.id}`,
+        key,
         label: field.label,
         groupId: section,
         filterKind: field.type === "DATE" ? "date" : select ? "enum" : "text",
@@ -101,18 +102,19 @@ export function buildSuiviColumns({
         knownValues: select ? field.options.map((o) => o.value) : undefined,
         renderValue: select ? (v) => <ValueChip value={v} size="xs" /> : undefined,
         render: (row) =>
-          // J-1 column of a dossier handed to the planification team: read only here, says where it went
-          section === "SECURISATION" && field.planification && row.planification && !row.values[field.id] ? (
-            <span className="flex h-8 items-center px-1" title="Cellule plani ≠ « Planifié » : colonne traitée par la planification">
-              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-600 ring-1 ring-violet-200">
-                <Lock className="size-3" /> Planification
-              </span>
+          field.planification && !row.planification ? (
+            // closed for this dossier: Cellule plani is "Planifié"
+            <span
+              className="flex h-8 items-center px-1.5"
+              title="Cellule plani « Planifié » : passez-la à « Ouvert » pour remplir cette colonne"
+            >
+              <span className="h-px w-5 rounded-full bg-slate-200" />
             </span>
           ) : (
             <ValuePicker
               field={field}
               value={row.values[field.id]}
-              editable={full && editableSections.includes(effectiveSection(field, row)) && (canEditRow?.(row) ?? true)}
+              editable={full && !field.auto && editableSections.includes(section) && (canEditRow?.(row) ?? true)}
               onSave={(value) => onSave(row.id, field.id, value)}
             />
           ),
@@ -131,6 +133,7 @@ export function buildSuiviGroups(
   editableSections: FieldSection[],
   stats: DossierStats | null,
   rawSources: DataSource[],
+  openCount = 0,
 ): GridGroup[] {
   const source = (s: DataSource): GridGroup => {
     const id = sourceGroup(s);
@@ -140,9 +143,8 @@ export function buildSuiviGroups(
   const groups: GridGroup[] = [];
 
   for (const section of SECTIONS) {
-    if (section === "PLANIFICATION" && !sections.includes(section)) continue;
     const full = sections.includes(section);
-    const stat = section === "PLANIFICATION" ? undefined : stats?.sections.find((s) => s.section === section);
+    const stat = stats?.sections.find((s) => s.section === section);
     const editable = full && editableSections.includes(section);
     groups.push({
       id: section,
@@ -155,6 +157,14 @@ export function buildSuiviGroups(
           {full && stat && stats && (
             <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-normal tabular-nums">
               {stat.treated}/{stats.total}
+            </span>
+          )}
+          {section === "J_MINUS_1" && full && openCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold tracking-normal normal-case"
+              title="Dossiers dont la Cellule plani est « Ouvert »"
+            >
+              <FolderOpen className="size-3" /> {openCount} ouvert{openCount > 1 ? "s" : ""}
             </span>
           )}
           {!editable && (

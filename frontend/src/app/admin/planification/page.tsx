@@ -1,5 +1,6 @@
-import { PlanificationPage } from "@/admin/pages/PlanificationPage/PlanificationPage";
+import { redirect } from "next/navigation";
 
+/** The planification team no longer exists: its dossiers ("Cellule plani" open) are in the follow-up. */
 export default function Page() {
-  return <PlanificationPage />;
+  redirect("/admin/suivi?route=PLANIFICATION");
 }

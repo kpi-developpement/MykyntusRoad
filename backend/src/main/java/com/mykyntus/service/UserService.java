@@ -23,6 +23,8 @@ public class UserService {
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.mykyntus.repository.DossierRepository dossierRepository;
+    private final com.mykyntus.repository.DossierWorkerRepository workerRepository;
+    private final com.mykyntus.repository.UserPreferenceRepository preferenceRepository;
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAll() {
@@ -79,10 +81,11 @@ public class UserService {
         if (user.getUsername().equals(currentUsername)) {
             throw ApiException.badRequest("Vous ne pouvez pas supprimer votre propre compte");
         }
-        // its dossiers go back to "not dispatched" in every team
+        // its dossiers go back to "not dispatched" / "nobody on it" in every team
         dossierRepository.unassignAll(user.getUsername());
-        dossierRepository.unassignAllPlanif(user.getUsername());
         dossierRepository.unassignAllJ(user.getUsername());
+        workerRepository.deleteByUsername(user.getUsername());
+        preferenceRepository.deleteByUsername(user.getUsername());
         userRepository.delete(user);
     }
 }

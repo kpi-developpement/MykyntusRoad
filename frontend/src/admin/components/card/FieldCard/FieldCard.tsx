@@ -11,7 +11,7 @@ import { Surface } from "@/shared/components/surface/Surface/Surface";
 import { Switch1 } from "@/shared/components/switch/Switch1/Switch1";
 import { fieldService } from "@/shared/services/fieldService";
 import { FIELD_TYPES, fieldTypeInfo } from "@/shared/utils/fieldTypes";
-import type { AppField, FieldType } from "@/shared/types";
+import { CELLULE_PLANI, type AppField, type FieldType } from "@/shared/types";
 import { cn } from "@/shared/utils/cn";
 
 interface FieldCardProps {
@@ -127,16 +127,16 @@ export function FieldCard({ field, index, secAdmin = false, onChanged, onError }
           />
         </div>
 
-        {secAdmin && field.section === "SECURISATION" && !field.planification && (
+        {secAdmin && field.section === "SECURISATION" && (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-cyan-50/60 px-3 py-2 ring-1 ring-cyan-100">
             <span className="text-xs font-medium text-slate-600">Visible dans le suivi (lecture seule)</span>
             <Switch1 size="sm" checked={field.published} disabled={busy} onChange={(published) => updateField({ published })} />
           </div>
         )}
-        {secAdmin && field.section === "SECURISATION" && field.code !== "j1_cellule_plani" && (
+        {field.section === "J_MINUS_1" && field.code !== CELLULE_PLANI && (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-violet-50/60 px-3 py-2 ring-1 ring-violet-100">
-            <span className="text-xs font-medium text-slate-600" title="Traitée par la planification quand la Cellule plani n'est pas « Planifié »">
-              Colonne J-1 (planification)
+            <span className="text-xs font-medium text-slate-600" title="Fermée tant que la Cellule plani vaut « Planifié », ouverte quand elle passe à « Ouvert »">
+              Seulement si Cellule plani « Ouvert »
             </span>
             <Switch1 size="sm" checked={field.planification} disabled={busy} onChange={(planification) => updateField({ planification })} />
           </div>

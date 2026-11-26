@@ -1,11 +1,11 @@
-export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PILOTE_PLANIFICATION" | "PILOTE_J";
+export type Role = "ADMIN" | "ADMIN_SECURISATION" | "PILOTE_SECURISATION" | "PILOTE_J";
 /**
- * J_MINUS_1 only remains in the history written before J-1 was merged into Sécurisation.
- * PLANIFICATION holds the J-1 columns of the dossiers that are not "Planifié".
+ * SECURISATION: sécurisation team, up to "Etat final". J_MINUS_1: "Cellule plani" + the columns it opens
+ * (admin and J pilots). PLANIFICATION only remains in the history of the former planification team.
  */
 export type FieldSection = "SECURISATION" | "J_MINUS_1" | "PLANIFICATION" | "J" | "J_PLUS_1";
-/** Teams the dossiers are dispatched to. */
-export type Team = "SECURISATION" | "PLANIFICATION" | "J";
+/** Teams working the dossiers: sécurisation (dispatched) and J-1 / J / J+1 pilots (they take their dossiers). */
+export type Team = "SECURISATION" | "J";
 /** DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red), CANCELLED (its import was cancelled, grey). */
 export type Delay = "DONE" | "ON_TIME" | "SOON" | "LATE" | "CANCELLED";
 export type FieldType = "SELECT" | "TEXT" | "DATE" | "USER";
@@ -16,22 +16,24 @@ export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrateur",
   ADMIN_SECURISATION: "Admin sécurisation",
   PILOTE_SECURISATION: "Pilote sécurisation",
-  PILOTE_PLANIFICATION: "Agent planification",
-  PILOTE_J: "Agent J / J+1",
+  PILOTE_J: "Pilote",
 };
 
 export const TEAM_LABELS: Record<Team, string> = {
   SECURISATION: "Pilote sécurisation",
-  PLANIFICATION: "Agent planification",
-  J: "Agent J / J+1",
+  J: "Pilote",
 };
 
 /** Team of a pilot role (null for the admins). */
 export function teamOf(role: Role | undefined): Team | null {
   if (role === "PILOTE_SECURISATION") return "SECURISATION";
-  if (role === "PILOTE_PLANIFICATION") return "PLANIFICATION";
   if (role === "PILOTE_J") return "J";
   return null;
+}
+
+/** Team whose "Pilote" column this role may join (the admin works with the J pilots). */
+export function joinableTeam(role: Role | undefined): Team | null {
+  return role === "ADMIN" ? "J" : teamOf(role);
 }
 
 /** Column key of a team's assignment. */
@@ -55,26 +57,24 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   J_PLUS_1: "J+1 à 12h00",
 };
 
-/** Every section, in display order. */
-export const SECTIONS: FieldSection[] = ["SECURISATION", "PLANIFICATION", "J", "J_PLUS_1"];
-/** Sections of the main follow-up (sécurisation only shows its published columns there). */
-export const MAIN_SECTIONS: FieldSection[] = ["PLANIFICATION", "J", "J_PLUS_1"];
-/** Work of the sécurisation team (with the J-1 columns of the "Planifié" dossiers). */
+/** Every section holding columns, in display order. */
+export const SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1", "J", "J_PLUS_1"];
+/** Sections of the main follow-up (sécurisation only shows its published columns there, e.g. Etat final). */
+export const MAIN_SECTIONS: FieldSection[] = ["J_MINUS_1", "J", "J_PLUS_1"];
+/** Work of the sécurisation team: up to "Etat final", nothing of J-1. */
 export const SECURISATION_SECTIONS: FieldSection[] = ["SECURISATION"];
-/**
- * Columns configured by the admin. In "Colonnes & valeurs", J_MINUS_1 is the J-1 tab: the sécurisation
- * columns flagged "Colonne J-1", shared with the sécurisation admin (they go to the planification when not secured).
- */
+/** Columns configured by the admin: J-1 (Cellule plani and the columns it opens), J, J+1. */
 export const ADMIN_FIELD_SECTIONS: FieldSection[] = ["J_MINUS_1", "J", "J_PLUS_1"];
-/** Columns configured by the sécurisation admin: its own columns and the J-1 ones. */
-export const SEC_FIELD_SECTIONS: FieldSection[] = ["SECURISATION", "J_MINUS_1"];
+/** Columns configured by the sécurisation admin. */
+export const SEC_FIELD_SECTIONS: FieldSection[] = ["SECURISATION"];
 
-/** Is this column shown in this "Colonnes & valeurs" tab (J_MINUS_1 = sécurisation columns flagged J-1)? */
-export function fieldInTab(field: { section: FieldSection; planification: boolean }, tab: FieldSection): boolean {
-  if (tab === "J_MINUS_1") return field.section === "J_MINUS_1" || (field.section === "SECURISATION" && field.planification);
-  if (tab === "SECURISATION") return field.section === "SECURISATION" && !field.planification;
+/** Is this column shown in this "Colonnes & valeurs" tab? */
+export function fieldInTab(field: { section: FieldSection }, tab: FieldSection): boolean {
   return field.section === tab;
 }
+
+/** "Cellule plani": every injected dossier is "Planifié", "Ouvert" opens the conditional J-1 columns. */
+export const CELLULE_PLANI = "j1_cellule_plani";
 
 export const SEC_SOURCES: DataSource[] = ["SEC_GLOBAL", "SEC_1", "SEC_2", "SEC_3"];
 export const SOURCE_LABELS: Record<DataSource, string> = {
@@ -117,8 +117,10 @@ export interface AppField {
   active: boolean;
   /** Also shown read only in the main table (ex: Etat final). */
   published: boolean;
-  /** J-1 column: worked by the planification team when the dossier is not "Planifié". */
+  /** Conditional J-1 column: only for the dossiers whose Cellule plani is open ("Ouvert"). */
   planification: boolean;
+  /** Filled by the application (pilot, date de traitement = import date), never by hand. */
+  auto: boolean;
   options: FieldOption[];
 }
 
@@ -143,22 +145,45 @@ export interface DossierRow {
   flags: string[];
   /** Flags changed by hand (no longer detected automatically). */
   flagsManual: boolean;
-  /** Sécurisation pilot the dossier is dispatched to (username). */
+  /** Lead sécurisation pilot (dispatch, username). */
   assignedTo: string | null;
-  /** Planification agent (username). */
-  assignedPlanif: string | null;
-  /** J / J+1 agent (username). */
+  /** Lead J-1 / J / J+1 pilot: the first who took the dossier (username). */
   assignedJ: string | null;
-  /** "Cellule plani" is not "Planifié": the J-1 columns are with the planification team. */
+  /** team -> the other pilots who joined the lead (usernames, joining order). */
+  workers: Partial<Record<Team, string[]>>;
+  /** Cellule plani open ("Ouvert"): the conditional J-1 columns are shown. */
   planification: boolean;
   /** Absent from the sécurisation files: sécurisation columns N/A. */
   horsSecu: boolean;
   delay: Delay;
+  /** Sécurisation still missing: J_MINUS_1 (appointment tomorrow), J (today). */
+  secuAlert: SecuAlert | null;
 }
 
-/** Username a dossier is dispatched to in a team. */
+export type SecuAlert = "J_MINUS_1" | "J";
+export const SECU_ALERT_LABELS: Record<SecuAlert, string> = {
+  J_MINUS_1: "À sécuriser · RDV demain",
+  J: "Non sécurisé · RDV aujourd'hui",
+};
+
+/** Lead of a dossier in a team (username). */
 export function assigneeOf(row: DossierRow, team: Team): string | null {
-  return team === "SECURISATION" ? row.assignedTo : team === "PLANIFICATION" ? row.assignedPlanif : row.assignedJ;
+  return team === "SECURISATION" ? row.assignedTo : row.assignedJ;
+}
+
+/** Every pilot of a team on the dossier: the lead first, then the ones who joined. */
+export function workersOf(row: DossierRow, team: Team): string[] {
+  const lead = assigneeOf(row, team);
+  const others = (row.workers?.[team] ?? []).filter((u) => u !== lead);
+  return lead ? [lead, ...others] : others;
+}
+
+/** Pilots of one team on a dossier (answer of take / join / leave). */
+export interface DossierWorkers {
+  dossierId: number;
+  team: Team;
+  lead: string | null;
+  workers: { team: Team; username: string; name: string; lead: boolean; joinedAt: string | null }[];
 }
 
 export interface Page<T> {
@@ -173,12 +198,16 @@ export interface DossierTable {
   sourceColumns: SourceColumn[];
   fields: AppField[];
   rows: Page<DossierRow>;
+  /** Matching dossiers whose Cellule plani is open: the conditional J-1 columns show when > 0. */
+  openCount: number;
+  /** username -> display name of the pilots shown in the page. */
+  names: Record<string, string>;
 }
 
 /** Condition of a column filter. */
 export type FilterOp = "contains" | "notContains" | "equals" | "notEquals" | "startsWith" | "endsWith" | "empty" | "notEmpty" | "between";
 
-/** Column keys: "date", "idExterne", "flags", "assignee", "status:<SECTION>", "raw:<column name>", "field:<id>". */
+/** Column keys: "date", "idExterne", "flags", "assignee", "secu", "status:<SECTION>", "raw:<column name>", "field:<id>". */
 export interface ColumnFilter {
   key: string;
   /** Accepted values ("" = empty). */
@@ -240,6 +269,8 @@ export interface SectionStat {
 export interface DossierStats {
   total: number;
   sections: SectionStat[];
+  /** Dossiers whose sécurisation is still missing (appointment tomorrow or today). */
+  secuPending: number;
 }
 
 export interface FieldValue {
@@ -250,6 +281,8 @@ export interface FieldValue {
   updatedAt: string | null;
   /** Values filled automatically at the same time (field id -> value). */
   autoFilled: Record<string, string>;
+  /** Cellule plani open after this change: the conditional J-1 columns of the dossier are shown. */
+  open: boolean;
 }
 
 export interface ImportResult {
@@ -284,7 +317,17 @@ export interface SecSource {
   visible: number;
 }
 
-export type EventType = "CREATED" | "IMPORT_UPDATED" | "DATA_RECEIVED" | "VALUE_SET" | "VALUE_CLEARED" | "FLAGS_CHANGED" | "ASSIGNED" | "IMPORT_CANCELLED";
+export type EventType =
+  | "CREATED"
+  | "IMPORT_UPDATED"
+  | "DATA_RECEIVED"
+  | "VALUE_SET"
+  | "VALUE_CLEARED"
+  | "FLAGS_CHANGED"
+  | "ASSIGNED"
+  | "IMPORT_CANCELLED"
+  | "JOINED"
+  | "LEFT";
 export type StageStatus = "DONE" | "CURRENT" | "PENDING";
 
 export interface StageField {
@@ -343,9 +386,29 @@ export interface DossierTimeline {
   events: TimelineEvent[];
   mails: TimelineMail[];
   delay: Delay;
+  /** Cellule plani open: the conditional J-1 columns apply. */
   planification: boolean;
   horsSecu: boolean;
   assignees: { team: Team; label: string; name: string }[];
+  /** Pilots on the dossier and anyone who changed something. */
+  contributors: Contributor[];
+  secuAlert: SecuAlert | null;
+}
+
+/** Someone who works / worked on a dossier. */
+export interface Contributor {
+  username: string;
+  name: string;
+  /** Team he works the dossier for (null = only changed something). */
+  team: Team | null;
+  teamLabel: string | null;
+  lead: boolean;
+  /** Still on the dossier. */
+  active: boolean;
+  joinedAt: string | null;
+  actions: number;
+  lastAt: string | null;
+  lastAction: string | null;
 }
 
 // ------------------------------------------------------------------ flags
@@ -427,11 +490,14 @@ export interface DayStat {
   soon: number;
   onTime: number;
   horsSecu: number;
+  /** Cellule plani open ("Ouvert"): conditional J-1 columns to fill. */
   planification: number;
   /** Not closed and without sécurisation pilot. */
   unassignedSecu: number;
-  /** Not closed and without J agent. */
+  /** Not closed and nobody working on it in the J team. */
   unassignedJ: number;
+  /** "Etat final" still empty (not cancelled, in the sécurisation files). */
+  unsecured: number;
   /** Dossiers of cancelled imports (grey, out of every count). */
   cancelled: number;
   status: DayStatus;

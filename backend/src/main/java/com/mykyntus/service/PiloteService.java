@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * The pilots of a team. The sécurisation admin manages his own team (PILOTE_SECURISATION accounts);
- * the planification and J agents are created by the admin in the users screen.
+ * the J pilots are created by the admin in the users screen.
  */
 @Service
 @RequiredArgsConstructor
@@ -31,6 +31,7 @@ public class PiloteService {
 
     private final AppUserRepository userRepository;
     private final DossierRepository dossierRepository;
+    private final com.mykyntus.repository.DossierWorkerRepository workerRepository;
     private final DossierSearchRepository searchRepository;
     private final DossierProgressService progressService;
     private final PasswordEncoder passwordEncoder;
@@ -87,6 +88,7 @@ public class PiloteService {
     public void delete(Long id) {
         AppUser user = pilote(id);
         dossierRepository.unassignAll(user.getUsername());
+        workerRepository.deleteByUsername(user.getUsername());
         userRepository.delete(user);
     }
 

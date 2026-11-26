@@ -15,7 +15,7 @@ import java.util.List;
 public record DossierSearchRequest(LocalDate date, String search, List<ColumnFilter> filters, SortSpec sort,
                                    Integer page, Integer size, Pin pin) {
 
-    /** "Mes dossiers en premier": username of the pilot and his team (SECURISATION, PLANIFICATION, J). */
+    /** "Mes dossiers en premier": username of the pilot and his team (SECURISATION, J), lead or joined. */
     public record Pin(String team, String username) {
     }
 

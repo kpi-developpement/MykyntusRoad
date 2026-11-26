@@ -25,6 +25,8 @@ export interface GridColumn<T> {
   filterable?: boolean;
   /** Hidden until the user shows it from the "Colonnes" menu. */
   defaultHidden?: boolean;
+  /** Stays readable on a greyed out row (ID, pilot: where a pilot opens / joins the dossier). */
+  bright?: boolean;
   /** Kind of value, chooses the conditions offered in the filter ("date" adds a date range). */
   filterKind?: "text" | "date" | "enum";
   /** Values always proposed in the filter, even with no dossier (dropdown options). */

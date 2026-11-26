@@ -42,7 +42,15 @@ export function GridToolbar({ grid, columns, groups, prefs, onExport, exporting 
             <span className="rounded-full bg-rose-100 px-1.5 text-[10px] font-bold tabular-nums">{filterCount}</span>
           </Button1>
         )}
-        <ColumnsMenu columns={columns} groups={groups} isVisible={prefs.isVisible} onToggle={prefs.setVisible} onReset={prefs.resetColumns} />
+        <ColumnsMenu
+          columns={columns}
+          groups={groups}
+          isVisible={prefs.isVisible}
+          onToggle={prefs.setVisible}
+          onReorder={prefs.setOrder}
+          onReset={prefs.resetColumns}
+          customized={prefs.customized}
+        />
         <IconButton
           variant="secondary"
           label={compact ? "Affichage confortable" : "Affichage compact"}

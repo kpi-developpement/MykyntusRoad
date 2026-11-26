@@ -30,7 +30,7 @@ const nameOf = (p: { fullName: string | null; username: string }) => p.fullName 
 const SPRING = { type: "spring", stiffness: 480, damping: 40 } as const;
 
 interface DispatchPageProps {
-  /** Team dispatched (sécurisation: sécurisation admin; planification / J: admin). */
+  /** Team dispatched (only the sécurisation has a dispatch: the J pilots take their dossiers). */
   team?: Team;
   eyebrow?: string;
   description?: string;
@@ -48,7 +48,6 @@ interface DispatchPageProps {
 function dossiersHref(team: Team, username: string, date: string): string {
   const q = `date=${date}&pilot=${encodeURIComponent(username)}&team=${team}`;
   if (team === "SECURISATION") return `/securisation/espace?${q}`;
-  if (team === "PLANIFICATION") return `/admin/suivi?${q}&route=PLANIFICATION`;
   return `/admin/suivi?${q}`;
 }
 

@@ -51,6 +51,7 @@ public class ImportService {
     private final FlagService flagService;
     private final SecuCrossCheckService crossCheckService;
     private final DossierProgressService progressService;
+    private final ImportDefaultsService defaultsService;
     private final com.mykyntus.repository.ImportRowRepository importRowRepository;
 
     /** Main daily file. @param forcedDate optional date applied to every dossier of the file */
@@ -184,6 +185,8 @@ public class ImportService {
             }
             dossierRepository.saveAll(toSave);
             importRowRepository.saveAll(importRows);
+            // ready for everyone: date de traitement = import date, Cellule plani = "Planifié"
+            defaultsService.apply(toSave, today);
             // admin's file crossed with the sécurisation files (N/A when absent), then closed / routed state
             crossCheckService.check(toSave, source);
             progressService.refresh(toSave);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
-import { CheckCircle2, Clock3, Gauge, Hourglass, Shuffle, TableProperties, TriangleAlert, UserX, Workflow, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock3, FolderOpen, Gauge, Hourglass, ShieldAlert, Shuffle, TableProperties, TriangleAlert, UserX, type LucideIcon } from "lucide-react";
 import { DayCalendar } from "../../components/calendar/DayCalendar/DayCalendar";
 import { DossierDrawer } from "../../components/drawer/DossierDrawer/DossierDrawer";
 import { PageHeader } from "../../components/layout/PageHeader/PageHeader";
@@ -73,7 +73,7 @@ export function DashboardView() {
   const ribbon = useMemo(() => dateRange(shiftIso(todayIso, -RIBBON_BACK), shiftIso(todayIso, RIBBON_AHEAD)), [todayIso]);
 
   const totals = useMemo(() => {
-    const t = { late: 0, soon: 0, onTime: 0, done: 0, unassignedSecu: 0, unassignedJ: 0, planif: 0, lateDays: [] as DayStat[] };
+    const t = { late: 0, soon: 0, onTime: 0, done: 0, unassignedSecu: 0, unassignedJ: 0, planif: 0, unsecured: 0, lateDays: [] as DayStat[] };
     for (const d of range ?? []) {
       t.late += d.late;
       t.soon += d.soon;
@@ -84,6 +84,8 @@ export function DashboardView() {
         t.unassignedJ += d.unassignedJ;
         t.planif += d.planification;
       }
+      // sécurisation the day before the appointment (and the day itself)
+      if (d.date === todayIso || d.date === shiftIso(todayIso, 1)) t.unsecured += d.unsecured ?? 0;
       if (d.late > 0) t.lateDays.push(d);
     }
     t.lateDays.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -91,7 +93,7 @@ export function DashboardView() {
   }, [range, todayIso]);
 
   const base = isSecAdmin ? "/securisation/espace" : "/admin/suivi";
-  const dispatchHref = (date: string) => (isSecAdmin ? `/securisation/dispatch?date=${date}` : `/admin/dispatch?team=J&date=${date}`);
+  const dispatchHref = (date: string) => (isSecAdmin ? `/securisation/dispatch?date=${date}` : `/admin/suivi?date=${date}&team=J&pilot=`);
 
   const tiles: { label: string; value: number; hint: string; icon: LucideIcon; accent: string; href: string }[] = [
     { label: "En retard", value: totals.late, hint: "Passé J+1 12h00", icon: TriangleAlert, accent: "#f0435a", href: `${base}?date=&delay=LATE` },
@@ -100,15 +102,24 @@ export function DashboardView() {
     { label: "Clôturés", value: totals.done, hint: `Sur ${BACK} jours`, icon: CheckCircle2, accent: "#12b5a6", href: `${base}?date=&delay=DONE` },
     isSecAdmin
       ? { label: "Sans pilote", value: totals.unassignedSecu, hint: "À dispatcher", icon: UserX, accent: "#8b7cf6", href: "/securisation/dispatch" }
-      : { label: "Sans agent J", value: totals.unassignedJ, hint: "À dispatcher", icon: UserX, accent: "#8b7cf6", href: "/admin/dispatch?team=J" },
-    {
-      label: "À planifier",
-      value: totals.planif,
-      hint: "Cellule plani autre que Planifié",
-      icon: Workflow,
-      accent: "#8b7cf6",
-      href: isSecAdmin ? "/securisation/espace?route=PLANIFICATION" : "/admin/planification",
-    },
+      : { label: "Sans pilote", value: totals.unassignedJ, hint: "Personne ne l'a pris", icon: UserX, accent: "#8b7cf6", href: "/admin/suivi?date=&team=J&pilot=" },
+    isSecAdmin
+      ? {
+          label: "À sécuriser",
+          value: totals.unsecured,
+          hint: "RDV demain ou aujourd'hui",
+          icon: ShieldAlert,
+          accent: "#e11d48",
+          href: "/securisation/espace?date=&secu=J_MINUS_1,J",
+        }
+      : {
+          label: "Cellule plani ouverte",
+          value: totals.planif,
+          hint: "Colonnes J-1 à remplir",
+          icon: FolderOpen,
+          accent: "#8b7cf6",
+          href: "/admin/suivi?date=&route=PLANIFICATION",
+        },
   ];
 
   return (
@@ -156,6 +167,7 @@ export function DashboardView() {
             stat={month.get(selected) ?? byDate.get(selected)}
             openHref={`${base}?date=${selected}`}
             dispatchHref={dispatchHref(selected)}
+            dispatchLabel={isSecAdmin ? "Redispatcher les non traités" : "Voir les dossiers sans pilote"}
           />
 
           <section className={styles.glass} aria-label="Retards ouverts">
@@ -221,7 +233,19 @@ export function DashboardView() {
 type Tab = Delay | "ALL";
 
 /** The chosen day: its counts, its dossiers (late first), filter by delay, click one = its life cycle. */
-function DayPanel({ date, stat, openHref, dispatchHref }: { date: string; stat?: DayStat; openHref: string; dispatchHref: string }) {
+function DayPanel({
+  date,
+  stat,
+  openHref,
+  dispatchHref,
+  dispatchLabel,
+}: {
+  date: string;
+  stat?: DayStat;
+  openHref: string;
+  dispatchHref: string;
+  dispatchLabel: string;
+}) {
   const reduce = useReducedMotion();
   const [table, setTable] = useState<DossierTable | null>(null);
   const [tab, setTab] = useState<Tab>("ALL");
@@ -288,7 +312,7 @@ function DayPanel({ date, stat, openHref, dispatchHref }: { date: string; stat?:
                 <span style={{ minWidth: 0 }}>
                   <span className={styles.rowId}>{r.idExterne}</span>
                   <span className={styles.rowMeta} style={{ display: "block" }}>
-                    {[r.planification ? "En planification" : null, r.horsSecu ? "Hors sécurisation" : null, r.assignedJ ? `Agent ${r.assignedJ}` : null, r.assignedTo ? `Pilote ${r.assignedTo}` : null]
+                    {[r.planification ? "Cellule plani ouverte" : null, r.horsSecu ? "Hors sécurisation" : null, r.assignedJ ? `Pilote ${r.assignedJ}` : null, r.assignedTo ? `Sécurisation ${r.assignedTo}` : null]
                       .filter(Boolean)
                       .join(", ") || "Non attribué"}
                   </span>
@@ -309,7 +333,7 @@ function DayPanel({ date, stat, openHref, dispatchHref }: { date: string; stat?:
             </Link>
             {(stat?.done ?? 0) < total && (
               <Link href={dispatchHref} className={`${styles.button} ${styles.soft}`}>
-                <Shuffle aria-hidden /> Redispatcher les non traités
+                <Shuffle aria-hidden /> {dispatchLabel}
               </Link>
             )}
           </div>

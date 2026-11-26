@@ -50,8 +50,8 @@ public class AppField {
     }
 
     /**
-     * J-1 column merged into Sécurisation: worked by the sécurisation team when "Cellule plani" is
-     * "Planifié" (or empty), by the planification team otherwise.
+     * Conditional J-1 column: it only applies (shown, editable, required) to the dossiers whose
+     * "Cellule plani" is not "Planifié" (set to "Ouvert" by hand).
      */
     private Boolean planification;
 

@@ -20,8 +20,9 @@ import java.util.Optional;
 
 /**
  * Values entered by the users in the application columns.
- * Every change is recorded in the dossier life cycle; when a value is set, the empty
- * DATE / USER columns of the same section are filled automatically (date of treatment, pilot).
+ * Every change is recorded in the dossier life cycle; when a value is set, the empty USER columns
+ * (and the empty DATE columns other than the "Date de traitement", given by the import) of the same
+ * section are filled automatically.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,24 +35,29 @@ public class DossierValueService {
     private final DossierEventRepository eventRepository;
     private final AppUserRepository userRepository;
     private final DossierProgressService progressService;
+    private final WorkerService workerService;
+
+    /** Detail of the first value entered over an import default (not counted as a modification). */
+    public static final String DEFAULT_REPLACED = "Remplace la valeur par défaut";
 
     @Transactional
     public FieldValueResponse updateValue(Long dossierId, Long fieldId, String rawValue, CurrentUser user) {
         Dossier dossier = dossierRepository.findById(dossierId).orElseThrow(() -> ApiException.notFound("Dossier introuvable"));
         AppField field = fieldRepository.findById(fieldId).orElseThrow(() -> ApiException.notFound("Champ introuvable"));
 
-        FieldSection section = DossierProgressService.effectiveSection(field, dossier);
+        FieldSection section = field.getSection();
         if (!user.role().canEdit(section)) {
-            throw ApiException.forbidden(section == FieldSection.PLANIFICATION
-                    ? "Ce dossier n'est pas planifié : ses colonnes J-1 sont traitées par la planification"
-                    : "Vous ne pouvez pas modifier la section " + section.getLabel());
+            throw ApiException.forbidden("Vous ne pouvez pas modifier la section " + section.getLabel());
         }
-        requireAssigned(dossier, user);
+        workerService.requireWorking(dossier, user);
         if (!field.isActive()) {
             throw ApiException.badRequest("Ce champ est désactivé");
         }
-        if (field.getType() == FieldType.USER) {
+        if (DossierProgressService.isAuto(field)) {
             throw ApiException.badRequest("« " + field.getLabel() + " » est rempli automatiquement");
+        }
+        if (!DossierProgressService.available(field, dossier)) {
+            throw ApiException.badRequest("« " + field.getLabel() + " » s'ouvre quand la Cellule plani passe à « Ouvert »");
         }
         String value = TextUtils.trimToNull(rawValue);
         validate(field, value);
@@ -62,8 +68,9 @@ public class DossierValueService {
 
         Map<Long, String> autoFilled = new LinkedHashMap<>();
         if (!Objects.equals(old, value)) {
+            boolean replacesDefault = existing.map(v -> DossierProgressService.DEFAULT_ACTOR.equals(v.getUpdatedBy())).orElse(false);
             write(dossier, field, existing, value, user.username());
-            record(dossier, field, section, old, value, actor, null);
+            record(dossier, field, section, old, value, actor, replacesDefault ? DEFAULT_REPLACED : null);
             if (value != null) {
                 autoFill(dossier, field, section, user.username(), actor, autoFilled);
             }
@@ -71,7 +78,8 @@ public class DossierValueService {
             progressService.refresh(dossier);
         }
         LocalDateTime now = LocalDateTime.now();
-        return new FieldValueResponse(dossierId, fieldId, value, value == null ? null : user.username(), now, autoFilled);
+        return new FieldValueResponse(dossierId, fieldId, value, value == null ? null : user.username(), now, autoFilled,
+                dossier.isRoutedPlanif());
     }
 
     private void validate(AppField field, String value) {
@@ -90,19 +98,13 @@ public class DossierValueService {
         }
     }
 
-    /** A pilot only edits the dossiers dispatched to him (his team's assignment). */
-    static void requireAssigned(Dossier dossier, CurrentUser user) {
-        Team team = user.role().team();
-        if (team != null && !user.username().equals(team.assignee(dossier))) {
-            throw ApiException.forbidden("Ce dossier ne vous est pas attribué");
-        }
-    }
-
     /** Fills the empty DATE (today) and USER (current user) columns of the same section. */
     private void autoFill(Dossier dossier, AppField changed, FieldSection section, String username, String actor, Map<Long, String> autoFilled) {
         for (AppField f : fieldRepository.findAll()) {
-            boolean auto = f.getType() == FieldType.DATE || f.getType() == FieldType.USER;
-            if (!auto || !f.isActive() || DossierProgressService.effectiveSection(f, dossier) != section || f.getId().equals(changed.getId())) {
+            boolean auto = (f.getType() == FieldType.DATE && !DossierProgressService.DATE_TRAITEMENT.equals(f.getCode()))
+                    || f.getType() == FieldType.USER;
+            if (!auto || !f.isActive() || f.getSection() != section || f.getId().equals(changed.getId())
+                    || !DossierProgressService.available(f, dossier)) {
                 continue;
             }
             Optional<DossierFieldValue> current = valueRepository.findByDossierIdAndFieldId(dossier.getId(), f.getId());

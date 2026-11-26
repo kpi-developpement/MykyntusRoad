@@ -32,10 +32,12 @@ public class DashboardService {
      *                (only cancelled dossiers) or EMPTY
      * @param cancelled dossiers of cancelled imports (grey, out of every count)
      * @param unassignedSecu not closed and without sécurisation pilot (sécurisation file dossiers)
-     * @param unassignedJ    not closed and without J agent
+     * @param planification  Cellule plani open ("Ouvert"): conditional J-1 columns to fill
+     * @param unassignedJ    not closed and nobody working on it in the J team
+     * @param unsecured      "Etat final" still empty (neither cancelled nor out of the sécurisation files)
      */
     public record DayStat(LocalDate date, long total, long done, long late, long soon, long onTime, long horsSecu,
-                          long planification, long unassignedSecu, long unassignedJ, long cancelled, String status) {
+                          long planification, long unassignedSecu, long unassignedJ, long cancelled, long unsecured, String status) {
     }
 
     /** One line per date of the range that has dossiers. */
@@ -57,11 +59,15 @@ public class DashboardService {
                                  and (d.horsSecu is null or d.horsSecu = false) and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
                        sum(case when (d.complete is null or d.complete = false) and d.assignedJ is null
                                  and (d.cancelled is null or d.cancelled = false) then 1 else 0 end),
-                       sum(case when d.cancelled = true then 1 else 0 end)
+                       sum(case when d.cancelled = true then 1 else 0 end),
+                       sum(case when (d.cancelled is null or d.cancelled = false) and (d.horsSecu is null or d.horsSecu = false)
+                                 and not exists (select 1 from DossierFieldValue v where v.dossier = d and v.field.code = :etat
+                                                 and v.value is not null and v.value <> '') then 1 else 0 end)
                 from Dossier d where d.dossierDate between :from and :to
                 group by d.dossierDate""", Object[].class)
                 .setParameter("from", from)
                 .setParameter("to", to)
+                .setParameter("etat", DossierProgressService.ETAT_FINAL)
                 .getResultList();
         TreeMap<LocalDate, DayStat> map = new TreeMap<>();
         for (Object[] r : rows) {
@@ -80,7 +86,8 @@ public class DashboardService {
             }
             String status = total == 0 ? "EMPTY" : late > 0 ? "LATE" : soon > 0 ? "SOON" : onTime > 0 ? "ON_TIME"
                     : done > 0 ? "DONE" : "CANCELLED";
-            map.put(date, new DayStat(date, total, done, late, soon, onTime, num(r[3]), num(r[4]), num(r[5]), num(r[6]), cancelled, status));
+            map.put(date, new DayStat(date, total, done, late, soon, onTime, num(r[3]), num(r[4]), num(r[5]), num(r[6]), cancelled,
+                    num(r[8]), status));
         }
         return new ArrayList<>(map.values());
     }
@@ -94,11 +101,12 @@ public class DashboardService {
     public record Work(String team, long open, long fresh, LocalDateTime latest) {
     }
 
-    /** New work of the connected pilot (polled by the application to alert him). */
+    /** New work dispatched to the connected pilot (polled by the application to alert him). */
     @Transactional(readOnly = true)
     public Work work(CurrentUser user, LocalDateTime since) {
         Team team = user.role().team();
-        if (team == null) {
+        // the J pilots take their dossiers themselves: nothing to announce
+        if (team == null || !team.dispatched()) {
             return new Work(null, 0, 0, null);
         }
         String who = "d." + team.property();

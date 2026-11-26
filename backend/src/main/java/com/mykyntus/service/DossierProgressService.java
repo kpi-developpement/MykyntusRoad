@@ -23,13 +23,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Where a dossier stands: which team works its J-1 columns (sécurisation or planification),
- * whether every column that applies to it is filled (closed) and whether it is late.
+ * Where a dossier stands: whether its conditional J-1 columns are open ("Cellule plani" not "Planifié"),
+ * whether every column that applies to it is filled (closed), whether it is late and whether its
+ * sécurisation is still missing the day before the appointment.
  * <ul>
  *   <li>Delay: the dossier must be closed before J+1 at 12:00. From J+1 00:00 it is "bientôt en retard"
  *       (orange), from J+1 12:00 "en retard" (red).</li>
- *   <li>Closed: every active column filled, except the automatic ones, the "Objet mail" of a mail answered
- *       something else than "Oui", and the sécurisation columns of a dossier absent from the sécurisation files.</li>
+ *   <li>Closed: every active column filled, except the automatic ones (pilot, date de traitement), the
+ *       conditional J-1 columns of a "Planifié" dossier, the "Objet mail" of a mail answered something else
+ *       than "Oui", and the sécurisation columns of a dossier absent from the sécurisation files.</li>
  * </ul>
  */
 @Slf4j
@@ -40,6 +42,12 @@ public class DossierProgressService {
     public static final String CELLULE_PLANI = "j1_cellule_plani";
     public static final String ETAT_FINAL = "sec_etat_final";
     public static final String COMMENTAIRE_SECU = "sec_commentaire";
+    /** "Date de traitement" of the sécurisation: the date the file bringing the dossier was imported. */
+    public static final String DATE_TRAITEMENT = "sec_date_traitement";
+    /** Default value of "Cellule plani" given to every imported dossier. */
+    public static final String PLANIFIE = "Planifié";
+    /** Author of the values written at import (date de traitement, Cellule plani by default). */
+    public static final String DEFAULT_ACTOR = "auto";
     /** "Objet mail" column of a mail column: same code + this suffix. */
     public static final String OBJET_SUFFIX = "_objet";
     /** J+1 at this time = deadline. */
@@ -66,15 +74,25 @@ public class DossierProgressService {
 
     // ------------------------------------------------------------------ rules
 
-    /** The J-1 columns of this dossier go to the planification team. */
+    /** "Cellule plani" set to something else than "Planifié" (e.g. "Ouvert"): the conditional J-1 columns open. */
     public static boolean routedToPlanif(String cellulePlani) {
         String v = TextUtils.normalize(cellulePlani);
         return !v.isEmpty() && !v.equals("planifie");
     }
 
-    /** Section a column belongs to for this dossier (a J-1 column moves to PLANIFICATION). */
-    public static FieldSection effectiveSection(AppField field, Dossier dossier) {
-        return field.isPlanification() && dossier.isRoutedPlanif() ? FieldSection.PLANIFICATION : field.getSection();
+    /** Conditional J-1 column (Commentaire, Mail...): only for the dossiers whose Cellule plani is open. */
+    public static boolean isConditional(AppField field) {
+        return field.isPlanification();
+    }
+
+    /** Filled by the application, never by hand: the pilot (USER) and the date de traitement (import date). */
+    public static boolean isAuto(AppField field) {
+        return field.getType() == FieldType.USER || DATE_TRAITEMENT.equals(field.getCode());
+    }
+
+    /** Does this column exist for this dossier (a conditional J-1 column only when Cellule plani is open)? */
+    public static boolean available(AppField field, Dossier dossier) {
+        return !isConditional(field) || dossier.isRoutedPlanif();
     }
 
     public static boolean isObjet(AppField field) {
@@ -88,11 +106,10 @@ public class DossierProgressService {
 
     /** Must this column be filled for the dossier to be closed? */
     public static boolean applies(AppField f, Dossier d, Map<String, String> valuesByCode) {
-        if (!f.isActive() || f.getType() == FieldType.USER) {
+        if (!f.isActive() || isAuto(f) || !available(f, d)) {
             return false;
         }
-        boolean secu = f.getSection() == FieldSection.SECURISATION || f.getSection() == FieldSection.J_MINUS_1;
-        if (secu && d.isHorsSecu()) {
+        if (f.getSection() == FieldSection.SECURISATION && d.isHorsSecu()) {
             return false;
         }
         if (isObjet(f)) {
@@ -127,25 +144,35 @@ public class DossierProgressService {
     }
 
     /**
+     * Sécurisation alert of a dossier: "J_MINUS_1" the day before its appointment and "J" on the day itself
+     * while "Etat final" is still empty (null = secured, not concerned or not yet due).
+     */
+    public static String secuAlert(Dossier d, String etatFinal, LocalDate today) {
+        if (d.isCancelled() || d.isHorsSecu() || d.getDossierDate() == null || TextUtils.trimToNull(etatFinal) != null) {
+            return null;
+        }
+        if (d.getDossierDate().equals(today.plusDays(1))) {
+            return "J_MINUS_1";
+        }
+        return d.getDossierDate().equals(today) ? "J" : null;
+    }
+
+    /**
      * Fields that must all be filled for a dossier to count as treated by a team (dispatch counters):
-     * sécurisation = "Etat final", planification = its dropdown columns, J = null (dossier closed).
+     * sécurisation = "Etat final", J = null (dossier closed).
      */
     @Transactional(readOnly = true)
     public List<Long> treatedFields(com.mykyntus.entity.Team team) {
         List<AppField> active = fieldRepository.findAllWithOptions().stream().filter(AppField::isActive).toList();
         return switch (team) {
             case SECURISATION -> active.stream().filter(f -> f.getCode().equals(ETAT_FINAL)).map(AppField::getId).toList();
-            case PLANIFICATION -> active.stream()
-                    .filter(f -> f.isPlanification() && f.getType() == FieldType.SELECT)
-                    .filter(f -> f.getOptions().stream().anyMatch(com.mykyntus.entity.FieldOption::isActive))
-                    .map(AppField::getId).toList();
             case J -> null;
         };
     }
 
     // ------------------------------------------------------------------ refresh
 
-    /** Recomputes the planification routing and the "closed" state of one dossier. */
+    /** Recomputes the open J-1 columns and the "closed" state of one dossier. */
     @Transactional
     public void refresh(Dossier dossier) {
         refresh(List.of(dossier));

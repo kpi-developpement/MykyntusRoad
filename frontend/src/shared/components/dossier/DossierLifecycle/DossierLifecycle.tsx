@@ -2,13 +2,14 @@
 
 import { useId, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Activity, ChevronRight, History, Mail, PencilLine, UserRound } from "lucide-react";
+import { Activity, ChevronRight, Crown, History, Mail, PencilLine, ShieldAlert, UserRound, UsersRound } from "lucide-react";
 import { useDossierTimeline } from "../../../hooks/useDossierTimeline";
-import type { DossierTimeline, FieldSection, TimelineEvent, TimelineStage } from "../../../types";
+import { SECU_ALERT_LABELS, type Contributor, type DossierTimeline, type FieldSection, type TimelineEvent, type TimelineStage } from "../../../types";
 import { cn } from "../../../utils/cn";
-import { formatDateTime } from "../../../utils/date";
+import { formatDateTime, formatRelative } from "../../../utils/date";
 import { SECTION_THEME, stageTheme } from "../../../utils/sectionTheme";
 import { Alert1 } from "../../alert/Alert1/Alert1";
+import { Avatar1 } from "../../avatar/Avatar1/Avatar1";
 import { ValueChip } from "../../badge/ValueChip/ValueChip";
 import { Skeleton } from "../../feedback/Skeleton/Skeleton";
 import { DelayBadge } from "../DelayBadge/DelayBadge";
@@ -16,11 +17,12 @@ import { EventList } from "../EventList/EventList";
 import { StageModal } from "../StageModal/StageModal";
 import { StageTrack } from "../StageTrack/StageTrack";
 
-type HistoryTab = "ALL" | "MAIL" | "SECURISATION" | "PLANIFICATION" | "J" | "J_PLUS_1";
+type HistoryTab = "ALL" | "MAIL" | "SECURISATION" | "J_MINUS_1" | "J" | "J_PLUS_1";
 
 const SERVICE_TABS: { id: Exclude<HistoryTab, "ALL" | "MAIL">; label: string; sections: FieldSection[] }[] = [
-  { id: "SECURISATION", label: "Sécurisation", sections: ["SECURISATION", "J_MINUS_1"] },
-  { id: "PLANIFICATION", label: "Planification", sections: ["PLANIFICATION"] },
+  { id: "SECURISATION", label: "Sécurisation", sections: ["SECURISATION"] },
+  // J-1 history includes the former planification team
+  { id: "J_MINUS_1", label: "J-1", sections: ["J_MINUS_1", "PLANIFICATION"] },
   { id: "J", label: "J", sections: ["J"] },
   { id: "J_PLUS_1", label: "J+1", sections: ["J_PLUS_1"] },
 ];
@@ -59,13 +61,26 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
           {timeline.horsSecu && (
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">Hors sécurisation (N/A)</span>
           )}
+          {timeline.secuAlert && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
+                timeline.secuAlert === "J" ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-amber-50 text-amber-700 ring-amber-200",
+              )}
+            >
+              <ShieldAlert className="size-3" /> {SECU_ALERT_LABELS[timeline.secuAlert]}
+            </span>
+          )}
+          {timeline.planification && (
+            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">Cellule plani ouverte</span>
+          )}
           {timeline.assignees.map((a) => (
             <span
               key={a.team}
               title={a.label}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1",
-                SECTION_THEME[a.team === "J" ? "J" : a.team].chip,
+                SECTION_THEME[a.team].chip,
               )}
             >
               <UserRound className="size-3" /> {a.name}
@@ -73,6 +88,8 @@ export function DossierLifecycle({ dossierId }: { dossierId: number }) {
           ))}
         </div>
       </section>
+
+      <Contributors contributors={timeline.contributors ?? []} />
 
       <section>
         <h4 className="mb-3 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase">Étapes</h4>
@@ -139,7 +156,7 @@ function HistoryTabs({ timeline }: { timeline: DossierTimeline }) {
   const tabs: { id: HistoryTab; label: string; count: number; dot?: string }[] = [
     { id: "ALL", label: "Tout", count: timeline.events.length },
     { id: "MAIL", label: "Mail", count: timeline.mails.filter((m) => m.value).length, dot: "bg-sky-500" },
-    ...SERVICE_TABS.filter((t) => t.id !== "PLANIFICATION" || timeline.planification || (bySection.get(t.id)?.length ?? 0) > 0).map((t) => ({
+    ...SERVICE_TABS.map((t) => ({
       id: t.id,
       label: t.label,
       count: bySection.get(t.id)?.length ?? 0,
@@ -239,6 +256,71 @@ function MailPanel({ timeline, events }: { timeline: DossierTimeline; events: Ti
       </div>
       <EventList events={events} emptyLabel="Aucun mail saisi" />
     </div>
+  );
+}
+
+/**
+ * Everyone who works / worked on the dossier: the pilots on it (lead first, those who joined him) and anyone
+ * who changed something, with the number of changes and the last one.
+ */
+function Contributors({ contributors }: { contributors: Contributor[] }) {
+  if (contributors.length === 0) {
+    return (
+      <section className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-center text-xs text-slate-400">
+        Personne n&apos;a encore pris ce dossier.
+      </section>
+    );
+  }
+  const active = contributors.filter((c) => c.active).length;
+  return (
+    <section>
+      <h4 className="mb-3 flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase">
+        <UsersRound className="size-3.5" /> Intervenants
+        <span className="rounded-full bg-slate-100 px-1.5 font-mono text-[10px] tracking-normal text-slate-500 tabular-nums">
+          {active} sur le dossier
+        </span>
+      </h4>
+      <ul className="space-y-1.5">
+        {contributors.map((c) => {
+          const theme = c.team ? SECTION_THEME[c.team === "J" ? "J" : "SECURISATION"] : null;
+          return (
+            <li
+              key={c.username}
+              className={cn("flex items-start gap-3 rounded-xl px-3 py-2.5 ring-1", c.active ? "bg-white ring-slate-200/80" : "bg-slate-50/70 ring-slate-100")}
+            >
+              <Avatar1 name={c.name} size="sm" className={cn(!c.active && "opacity-50 grayscale")} />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <span className={cn("truncate", !c.active && "text-slate-500")}>{c.name}</span>
+                  {c.lead && c.active && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                      <Crown className="size-2.5" /> principal
+                    </span>
+                  )}
+                  {c.teamLabel && theme && (
+                    <span className={cn("rounded-md px-1.5 py-px font-mono text-[9px] font-semibold uppercase ring-1", theme.chip)}>{c.teamLabel}</span>
+                  )}
+                  {!c.active && c.joinedAt && <span className="text-[10px] font-medium text-slate-400">a quitté le dossier</span>}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-slate-500" title={c.lastAction ?? undefined}>
+                  {c.actions > 0 ? (
+                    <>
+                      <span className="font-semibold text-slate-700 tabular-nums">{c.actions}</span> action{c.actions > 1 ? "s" : ""}
+                      {c.lastAction && <> · {c.lastAction}</>}
+                    </>
+                  ) : (
+                    "Aucune saisie pour l'instant"
+                  )}
+                </p>
+              </div>
+              <span className="shrink-0 text-right font-mono text-[10px] text-slate-400" title={formatDateTime(c.lastAt ?? c.joinedAt)}>
+                {formatRelative(c.lastAt ?? c.joinedAt)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

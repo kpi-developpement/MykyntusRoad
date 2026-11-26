@@ -10,10 +10,11 @@ import com.mykyntus.exception.ApiException;
  *   <li>{@code raw:<column name>} : a column of the imported files</li>
  *   <li>{@code field:<id>} : an application column (J-1 / J / J+1)</li>
  *   <li>{@code flags} : flags of the dossier (P1, SECU...)</li>
- *   <li>{@code assignee} : sécurisation pilot the dossier is dispatched to,
- *       {@code assignee:PLANIFICATION} / {@code assignee:J} : agent of the other teams</li>
+ *   <li>{@code assignee} : sécurisation pilots of the dossier (dispatched or joined),
+ *       {@code assignee:J} : J-1 / J / J+1 pilots working on it</li>
  *   <li>{@code delay} : DONE (closed), ON_TIME, SOON (J+1 morning, orange), LATE (after J+1 12:00, red)</li>
- *   <li>{@code route} : PLANIFICATION (J-1 columns with the planification team) or SECURISATION</li>
+ *   <li>{@code route} : PLANIFICATION (Cellule plani open, e.g. "Ouvert") or SECURISATION ("Planifié")</li>
+ *   <li>{@code secu} : sécurisation still missing, J_MINUS_1 (appointment tomorrow) or J (today)</li>
  *   <li>{@code status:<SECTION>} : progress of a section (UNTOUCHED, IN_PROGRESS, DONE)</li>
  * </ul>
  */
@@ -29,6 +30,7 @@ public sealed interface ColumnKey {
     String BATCH = "batch";
     String ROUTE = "route";
     String STATUS_PREFIX = "status:";
+    String SECU = "secu";
 
     record DateKey() implements ColumnKey {
     }
@@ -56,8 +58,12 @@ public sealed interface ColumnKey {
     record BatchKey() implements ColumnKey {
     }
 
-    /** Team working the J-1 columns: PLANIFICATION or SECURISATION. */
+    /** Cellule plani: PLANIFICATION (open, conditional J-1 columns shown) or SECURISATION ("Planifié"). */
     record RouteKey() implements ColumnKey {
+    }
+
+    /** Sécurisation still missing the day before the appointment (J_MINUS_1) or on the day (J). */
+    record SecuKey() implements ColumnKey {
     }
 
     /** Progress of the dossier in one section: nothing filled, started, or done. */
@@ -91,6 +97,9 @@ public sealed interface ColumnKey {
         }
         if (ROUTE.equals(key)) {
             return new RouteKey();
+        }
+        if (SECU.equals(key)) {
+            return new SecuKey();
         }
         if (key.startsWith(RAW_PREFIX) && key.length() > RAW_PREFIX.length()) {
             return new RawKey(key.substring(RAW_PREFIX.length()));

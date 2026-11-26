@@ -12,6 +12,9 @@ import com.mykyntus.security.CurrentUser;
 import com.mykyntus.service.DossierService;
 import com.mykyntus.service.DossierTimelineService;
 import com.mykyntus.service.DossierValueService;
+import com.mykyntus.service.WorkerService;
+import com.mykyntus.dto.worker.DossierWorkersResponse;
+import com.mykyntus.entity.Team;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,6 +35,7 @@ public class DossierController {
     private final DossierTimelineService timelineService;
     private final FlagService flagService;
     private final ExportService exportService;
+    private final WorkerService workerService;
 
     /** Simple listing (date + ID Externe search). */
     @GetMapping
@@ -91,6 +95,24 @@ public class DossierController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + name + "\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(content);
+    }
+
+    /** Pilots of a team on the dossier (shown before taking / joining it). */
+    @GetMapping("/{dossierId}/workers/{team}")
+    public DossierWorkersResponse workers(@PathVariable Long dossierId, @PathVariable String team) {
+        return workerService.workers(dossierId, Team.parse(team));
+    }
+
+    /** The connected pilot takes the dossier, or joins the pilots already working on it. */
+    @PostMapping("/{dossierId}/workers/{team}")
+    public DossierWorkersResponse join(@PathVariable Long dossierId, @PathVariable String team, @AuthenticationPrincipal Jwt jwt) {
+        return workerService.join(dossierId, Team.parse(team), CurrentUser.from(jwt));
+    }
+
+    /** The connected pilot stops working on the dossier. */
+    @DeleteMapping("/{dossierId}/workers/{team}")
+    public DossierWorkersResponse leave(@PathVariable Long dossierId, @PathVariable String team, @AuthenticationPrincipal Jwt jwt) {
+        return workerService.leave(dossierId, Team.parse(team), CurrentUser.from(jwt));
     }
 
     /** Life cycle of a dossier: stages reached and full history. */

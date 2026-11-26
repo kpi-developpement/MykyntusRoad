@@ -36,6 +36,8 @@ public class DataSeeder implements ApplicationRunner {
     private final AppUserRepository userRepository;
     private final AppFieldRepository fieldRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.mykyntus.service.ImportDefaultsService defaultsService;
+    private final DossierProgressService progressService;
 
     @Override
     @Transactional
@@ -48,43 +50,64 @@ public class DataSeeder implements ApplicationRunner {
         ensureUser("pilote.secu", "pilote123", "Pilote sécurisation", Role.PILOTE_SECURISATION);
         ensureUser("pilote.j", "pilote123", "Pilote J", Role.PILOTE_J);
         ensureUser("a.guengombe", "agent123", "GUENGOMBE Abed Prince", Role.PILOTE_J);
-        ensureUser("i.labyied", "plani123", "Islam LABYIED", Role.PILOTE_PLANIFICATION);
+        ensureUser("i.labyied", "plani123", "Islam LABYIED", Role.PILOTE_J);
         seedMainFields();
         seedSecurisationFields();
-        mergeJ1IntoSecurisation();
+        boolean separated = separateJ1();
         seedMailObjects();
+        if (separated) {
+            // the rules changed (J-1 columns, date de traitement): every dossier is recomputed
+            defaultsService.realignTreatmentDates();
+            defaultsService.backfill();
+            progressService.refreshAll();
+        }
     }
 
     /**
-     * J-1 merged into Sécurisation: its columns move to the Sécurisation section ("Cellule plani" first),
-     * every one but "Cellule plani" goes to the planification team when the dossier is not "Planifié".
-     * "Cellule sécurisation", "Département" and "Pilote" (already given by the dispatch) are deactivated,
-     * their values are kept. Runs once (while "Cellule plani" is still in J-1).
+     * The sécurisation team stops at "Etat final": "Cellule plani" and the J-1 columns after it go to the
+     * J-1 section, worked by the admin and the J pilots. Every column but "Cellule plani" is conditional:
+     * it only opens for the dossiers whose Cellule plani is set to "Ouvert" (they are all "Planifié" by
+     * default). "Cellule sécurisation", "Département" and "Pilote" (given by the dispatch) are deactivated,
+     * their values are kept. Runs once: on a new database, or on a database where J-1 was merged into
+     * Sécurisation.
+     *
+     * @return true when the columns were moved
      */
-    private void mergeJ1IntoSecurisation() {
+    private boolean separateJ1() {
         Map<String, AppField> byCode = fieldRepository.findAll().stream().collect(Collectors.toMap(AppField::getCode, f -> f));
         AppField plani = byCode.get(DossierProgressService.CELLULE_PLANI);
-        if (plani == null || plani.getSection() != FieldSection.J_MINUS_1) {
-            return;
+        if (plani == null) {
+            return false;
         }
-        for (String code : List.of("sec_departement", "sec_pilote", "j1_cellule_securisation")) {
-            AppField f = byCode.get(code);
-            if (f != null) {
-                f.setActive(false);
+        boolean merged = plani.getSection() == FieldSection.SECURISATION;
+        boolean fresh = plani.getSection() == FieldSection.J_MINUS_1 && byCode.values().stream().noneMatch(AppField::isPlanification);
+        if (!merged && !fresh) {
+            return false;
+        }
+        if (fresh) {
+            for (String code : List.of("sec_departement", "sec_pilote", "j1_cellule_securisation")) {
+                AppField f = byCode.get(code);
+                if (f != null) {
+                    f.setActive(false);
+                }
             }
         }
-        int position = fieldRepository.findMaxPosition(FieldSection.SECURISATION);
         List<AppField> j1 = byCode.values().stream()
-                .filter(f -> f.getSection() == FieldSection.J_MINUS_1)
-                .sorted(Comparator.comparingInt(AppField::getPosition).thenComparing(AppField::getId))
+                .filter(f -> f == plani || (merged ? f.getSection() == FieldSection.SECURISATION && f.isPlanification()
+                        : f.getSection() == FieldSection.J_MINUS_1))
+                .sorted(Comparator.comparing((AppField f) -> f != plani).thenComparingInt(AppField::getPosition).thenComparing(AppField::getId))
                 .toList();
+        int position = 0;
         for (AppField f : j1) {
-            f.setSection(FieldSection.SECURISATION);
+            f.setSection(FieldSection.J_MINUS_1);
             f.setPosition(++position);
-            f.setPlanification(!f.getCode().equals(DossierProgressService.CELLULE_PLANI));
+            f.setPlanification(f != plani);
+            f.setPublished(false);
         }
         fieldRepository.saveAll(byCode.values());
-        log.info("J-1 merged into Sécurisation ({} columns)", j1.size());
+        fieldRepository.flush();
+        log.info("J-1 columns separated from Sécurisation ({} columns)", j1.size());
+        return true;
     }
 
     /** "Objet" text column right after every mail column. */

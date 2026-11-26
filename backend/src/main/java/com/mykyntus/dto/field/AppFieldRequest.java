@@ -14,7 +14,7 @@ public record AppFieldRequest(
         Boolean active,
         /** Also shown read only in the main table. */
         Boolean published,
-        /** Sécurisation column worked by the planification team when the dossier is not "Planifié". */
+        /** J-1 column only opened for the dossiers whose Cellule plani is not "Planifié". */
         Boolean planification) {
 
     public AppFieldRequest(String label, FieldSection section, FieldType type, Integer position, Boolean active, Boolean published) {

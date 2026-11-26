@@ -40,6 +40,11 @@ public class ExportService {
     private final DossierFieldValueRepository valueRepository;
     private final SourceColumnRepository sourceColumnRepository;
     private final AppFieldRepository fieldRepository;
+    private final com.mykyntus.repository.DossierWorkerRepository workerRepository;
+
+    /** What the cells of a chunk need besides the dossier: its values, its pilots, the "Etat final" column. */
+    private record Ctx(Map<Long, String> values, List<com.mykyntus.entity.DossierWorker> workers, Long etatFinalId) {
+    }
 
     @Transactional(readOnly = true)
     public byte[] export(ExportRequest request) {
@@ -50,6 +55,8 @@ public class ExportService {
         columns.forEach(c -> ColumnKey.parse(c.key()));
 
         List<Long> ids = searchRepository.ids(criteria, MAX_ROWS);
+        Long etatFinalId = fieldRepository.findAll().stream()
+                .filter(f -> DossierProgressService.ETAT_FINAL.equals(f.getCode())).map(f -> f.getId()).findFirst().orElse(null);
         try (SXSSFWorkbook wb = new SXSSFWorkbook(200); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             SXSSFSheet sheet = wb.createSheet("Dossiers");
             CellStyle header = headerStyle(wb);
@@ -72,6 +79,8 @@ public class ExportService {
                 for (DossierFieldValue v : valueRepository.findByDossierIds(chunk)) {
                     values.computeIfAbsent(v.getDossier().getId(), k -> new HashMap<>()).put(v.getField().getId(), v.getValue());
                 }
+                Map<Long, List<com.mykyntus.entity.DossierWorker>> workers = workerRepository.findByDossierIds(chunk).stream()
+                        .collect(Collectors.groupingBy(w -> w.getDossier().getId()));
                 for (Long id : chunk) {
                     Dossier d = dossiers.get(id);
                     if (d == null) {
@@ -79,7 +88,8 @@ public class ExportService {
                     }
                     Row row = sheet.createRow(r++);
                     for (int c = 0; c < columns.size(); c++) {
-                        String value = value(d, values.getOrDefault(id, Map.of()), columns.get(c).key());
+                        Ctx ctx = new Ctx(values.getOrDefault(id, Map.of()), workers.getOrDefault(id, List.of()), etatFinalId);
+                        String value = value(d, ctx, columns.get(c).key());
                         if (value != null) {
                             row.createCell(c).setCellValue(value);
                         }
@@ -97,12 +107,13 @@ public class ExportService {
         }
     }
 
-    private String value(Dossier d, Map<Long, String> values, String key) {
+    private String value(Dossier d, Ctx ctx, String key) {
+        Map<Long, String> values = ctx.values();
         return switch (ColumnKey.parse(key)) {
             case ColumnKey.DateKey ignored -> d.getDossierDate() == null ? null : d.getDossierDate().format(DATE);
             case ColumnKey.IdKey ignored -> d.getIdExterne();
             case ColumnKey.FlagsKey ignored -> String.join(", ", FlagService.decode(d.getFlags()));
-            case ColumnKey.AssigneeKey(com.mykyntus.entity.Team team) -> team.assignee(d);
+            case ColumnKey.AssigneeKey(com.mykyntus.entity.Team team) -> pilots(d, team, ctx.workers());
             case ColumnKey.DelayKey ignored -> switch (DossierProgressService.delay(d)) {
                 case DONE -> "Clôturé";
                 case ON_TIME -> "Dans les délais";
@@ -110,12 +121,38 @@ public class ExportService {
                 case LATE -> "En retard";
                 case CANCELLED -> "Annulé";
             };
-            case ColumnKey.RouteKey ignored -> d.isRoutedPlanif() ? "Planification" : "Sécurisation";
+            case ColumnKey.RouteKey ignored -> d.isRoutedPlanif() ? "Ouvert" : "Planifié";
+            case ColumnKey.SecuKey ignored -> secuLabel(d, ctx);
             case ColumnKey.BatchKey ignored -> null;
             case ColumnKey.StatusKey(com.mykyntus.entity.FieldSection section) -> status(values, section);
             case ColumnKey.RawKey(String column) -> d.getRawData().get(column);
             case ColumnKey.FieldKey(Long fieldId) -> values.get(fieldId);
         };
+    }
+
+    /** "À sécuriser (RDV demain)" / "Non sécurisé (RDV aujourd'hui)". */
+    private static String secuLabel(Dossier d, Ctx ctx) {
+        String etat = ctx.etatFinalId() == null ? null : ctx.values().get(ctx.etatFinalId());
+        String alert = ctx.etatFinalId() == null ? null : DossierProgressService.secuAlert(d, etat, java.time.LocalDate.now());
+        if (alert == null) {
+            return null;
+        }
+        return "J".equals(alert) ? "Non sécurisé (RDV aujourd'hui)" : "À sécuriser (RDV demain)";
+    }
+
+    /** Lead then the pilots who joined him. */
+    private static String pilots(Dossier d, com.mykyntus.entity.Team team, List<com.mykyntus.entity.DossierWorker> workers) {
+        List<String> names = new ArrayList<>();
+        String lead = team.assignee(d);
+        if (lead != null) {
+            names.add(lead);
+        }
+        for (com.mykyntus.entity.DossierWorker w : workers) {
+            if (w.getTeam() == team && !names.contains(w.getUsername())) {
+                names.add(w.getUsername());
+            }
+        }
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
     private final Map<com.mykyntus.entity.FieldSection, List<Long>[]> statusRules = new java.util.concurrent.ConcurrentHashMap<>();

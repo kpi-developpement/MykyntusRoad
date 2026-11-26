@@ -28,6 +28,10 @@ interface DataGridProps<T> {
   maxHeight?: string;
   /** Rows shown greyed out (e.g. dossiers that are not the pilot's own). */
   rowMuted?: (row: T) => boolean;
+  /** Tooltip of a greyed out row. */
+  mutedTitle?: string;
+  /** Rows highlighted (dossiers the connected pilot works on). */
+  rowMine?: (row: T) => boolean;
 }
 
 const DEFAULT_SUBHEADER = "bg-brand-50 text-brand-950";
@@ -35,6 +39,8 @@ const PINNED_HEADER = "bg-[linear-gradient(180deg,#14206e,#0b1347)] text-white";
 const SKELETON_ROWS = 9;
 /** Only the rows visible on load are animated (fewer GPU layers at the same time). */
 const ANIMATED_ROWS = 20;
+/** Permanent bar on the left of the rows the pilot works on. */
+const MINE_ACCENT = "after:absolute after:inset-y-1.5 after:left-0 after:w-[3px] after:rounded-r-full after:bg-emerald-500";
 /** Neon bar on the left of the hovered row. */
 const ROW_ACCENT =
   "before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-r-full before:bg-linear-to-b before:from-sky-400 before:to-brand-600 before:opacity-0 before:transition-opacity group-hover/row:before:opacity-100";
@@ -60,6 +66,8 @@ export function DataGrid<T>({
   empty,
   maxHeight = "calc(100dvh - 15rem)",
   rowMuted,
+  mutedTitle = "Dossier non attribué à vous : lecture seule",
+  rowMine,
 }: DataGridProps<T>) {
   const [scrolledX, setScrolledX] = useState(false);
 
@@ -190,22 +198,32 @@ export function DataGrid<T>({
                     ))}
                   </tr>
                 ))
-              : rows.map((row, i) => (
+              : rows.map((row, i) => {
+                  const muted = rowMuted?.(row) ?? false;
+                  const mine = !muted && (rowMine?.(row) ?? false);
+                  return (
                   <tr
                     key={rowKey(row)}
-                    title={rowMuted?.(row) ? "Dossier non attribué à vous : lecture seule" : undefined}
-                    className={cn("group/row", i < ANIMATED_ROWS && "animate-row-in", rowMuted?.(row) && "[&>td]:bg-slate-50 [&>td>*]:opacity-55")}
+                    title={muted ? mutedTitle : undefined}
+                    className={cn(
+                      "group/row",
+                      i < ANIMATED_ROWS && "animate-row-in",
+                      // the "bright" cells (ID, pilot) stay readable: that is where a pilot joins the dossier
+                      muted && "[&>td]:bg-slate-50 [&>td:not([data-bright])>*]:opacity-55",
+                    )}
                     style={i < ANIMATED_ROWS ? { animationDelay: `${i * 16}ms` } : undefined}
                   >
                     {ordered.map((c, j) => (
                       <td
                         key={c.key}
+                        data-bright={c.bright ? "" : undefined}
                         style={c.pinned ? { left: offsets[c.key] } : undefined}
                         className={cn(
                           "border-b border-slate-100 bg-white px-2.5 align-middle transition-colors duration-150 group-hover/row:bg-row-hover",
                           cellPad,
                           c.pinned ? "sticky z-10" : j === 0 && "relative",
                           j === 0 && ROW_ACCENT,
+                          j === 0 && mine && MINE_ACCENT,
                           c.key === lastPinnedKey && "border-r border-r-slate-200/80",
                           c.key === lastPinnedKey && scrolledX && "shadow-pin",
                         )}
@@ -214,7 +232,8 @@ export function DataGrid<T>({
                       </td>
                     ))}
                   </tr>
-                ))}
+                  );
+                })}
           </tbody>
         </table>
         {!initialLoading && !loading && rows.length === 0 && <div className="sticky left-0 w-full">{empty}</div>}

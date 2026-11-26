@@ -61,10 +61,12 @@ En local, le mot de passe de la base est lu dans `backend/.env` (`DB_PASSWORD=..
 
 | Identifiant   | Mot de passe | Rôle                                        |
 |---------------|--------------|---------------------------------------------|
-| `admin`       | `admin123`   | ADMIN : import principal, colonnes J-1 / J / J+1, utilisateurs (sécurisation en lecture) |
-| `admin.secu`  | `secu1234`   | ADMIN_SECURISATION : 3 fichiers sécurisation, colonnes affichées, valeurs sécurisation |
-| `pilote.secu` | `pilote123`  | PILOTE_SECURISATION : sections Sécurisation et J-1 |
-| `pilote.j`    | `pilote123`  | PILOTE_J : sections J et J+1 |
+| `admin`       | `admin123`   | ADMIN : import principal, colonnes J-1 / J / J+1, utilisateurs (état final sécurisation en lecture) |
+| `admin.secu`  | `secu1234`   | ADMIN_SECURISATION : fichiers sécurisation, colonnes, dispatch des pilotes sécurisation |
+| `pilote.secu` | `pilote123`  | PILOTE_SECURISATION : section Sécurisation (jusqu'à « Etat final ») |
+| `pilote.j`    | `pilote123`  | PILOTE_J : sections J-1 (Cellule plani…), J et J+1, prend ses dossiers lui-même |
+
+Le rôle « Agent planification » n'existe plus : ses comptes deviennent des PILOTE_J au démarrage.
 
 ## Fonctionnement
 
@@ -77,22 +79,48 @@ En local, le mot de passe de la base est lu dans `backend/.env` (`DB_PASSWORD=..
   dont l'admin gère les valeurs dans « Colonnes & valeurs » (peut aussi passer une colonne en texte libre).
 - **Filtres par colonne** (côté serveur) : sur chaque colonne, liste des valeurs avec leur nombre,
   « (Vides) », recherche, filtre « contient », tri croissant / décroissant. Les filtres actifs
-  s'affichent en puces au-dessus du tableau. Colonnes masquables et densité mémorisées par navigateur.
+  s'affichent en puces au-dessus du tableau. Ordre, colonnes masquées et densité mémorisés par compte.
 
 ### Sécurisation
 
 - L'admin sécurisation importe **3 fichiers** (`/securisation/imports`). Chaque ligne est rattachée à son dossier
   par l'identifiant (`Ordre de travail: ID Externe`, `EPS`… ou une colonne dont les valeurs ressemblent à `EPS-0022050200`).
   Les colonnes de chaque fichier sont stockées à part (`S1::`, `S2::`, `S3::`) et il choisit celles qui sont affichées.
-- Colonnes de travail des pilotes : Date de traitement (date, remplie automatiquement), Pilote (rempli automatiquement
-  avec la personne qui traite), Département, Commentaire de traitement, **Etat final**.
+- Colonnes de travail des pilotes : **Date de traitement** (= date d'import du fichier, automatique, non modifiable),
+  Commentaire de traitement, **Etat final**. La sécurisation s'arrête là : rien de J-1.
 - Une colonne « Visible dans le suivi » (ex : Etat final) apparaît en lecture seule pour l'admin et les pilotes J.
+- **Alerte J-1** : la veille du rendez-vous (et le jour même), un dossier dont l'« Etat final » est vide est déclaré
+  « pas encore sécurisé » : bouclier sur l'EPS, bandeau avec le nombre et un filtre en un clic (`secu=J_MINUS_1,J`).
+- Le dispatch sécurisation reste (admin sécurisation) ; un pilote peut aussi rejoindre le dossier d'un collègue.
+
+### J-1 (Cellule plani)
+
+- Chaque dossier injecté arrive avec **Cellule plani = « Planifié »** : tout est visible par tout le monde dès l'import.
+- Les colonnes J-1 conditionnelles (Commentaire, Mail / Teams, Mail et leurs « Objet ») n'apparaissent que lorsqu'au
+  moins un dossier passe à **« Ouvert »**, et ne sont saisissables que sur ces dossiers. Saisie : admin et pilotes J.
+- Dans « Colonnes & valeurs » (admin, onglet J-1), l'interrupteur « Seulement si Cellule plani « Ouvert » » rend une
+  colonne conditionnelle.
+
+### Colonne « Pilote » (prendre / rejoindre)
+
+- Plus de dispatch côté admin : un pilote clique sur « Prendre », confirme, et son nom s'affiche. D'autres pilotes
+  peuvent **rejoindre** le même dossier : la fenêtre de confirmation montre qui est déjà dessus. On peut aussi le quitter.
+- Un pilote ne modifie que les dossiers sur lesquels il travaille ; les autres restent visibles en lecture seule.
+- Chaque prise / arrivée / départ et chaque saisie est enregistré dans le **cycle de vie** (section « Intervenants » :
+  qui est sur le dossier, ses actions, la dernière).
+- API : `GET|POST|DELETE /api/dossiers/{id}/workers/{SECURISATION|J}`.
+
+### Drapeaux et colonnes
+
+- Les drapeaux sont collés à l'ID Externe (même cellule, colonne figée) : ils restent toujours à côté de l'EPS.
+- « Colonnes » : chaque profil choisit l'**ordre** (glisser-déposer, flèches, Alt + ↑ ↓) et les colonnes affichées.
+  C'est enregistré sur le compte (`/api/me/preferences/grid.<tableau>`), donc identique sur tous les postes.
 
 ### Cycle de vie d'un dossier
 
 - Chaque création / modification par un import et chaque saisie (ancienne → nouvelle valeur, auteur, date) est historisée.
 - Survoler un ID Externe **3 secondes** : road map (étape atteinte, événements, modifications).
-  Cliquer : panneau complet (étapes Import → Sécurisation → J-1 → J → J+1, historique).
+  Cliquer : panneau complet (étapes Import → Sécurisation → J-1 → J → J+1, intervenants, historique).
 - `GET /api/dossiers/{id}/timeline`.
 
 ### Raccourcis

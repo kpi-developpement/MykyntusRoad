@@ -12,7 +12,7 @@ export function ChampsPage() {
       <PageHeader
         eyebrow="Administration"
         title="Colonnes & valeurs"
-        description="Définissez les colonnes J-1 / J / J+1 et les valeurs proposées dans chaque liste déroulante. Les colonnes J-1 sont partagées avec l'admin sécurisation : quand un dossier n'est pas sécurisé, elles passent à la planification."
+        description="Définissez les colonnes J-1 / J / J+1 et les valeurs proposées dans chaque liste déroulante. En J-1, chaque dossier arrive « Planifié » : les colonnes conditionnelles s'ouvrent quand la Cellule plani passe à « Ouvert »."
         icon={<SlidersHorizontal />}
       />
       <FieldsBoard sections={ADMIN_FIELD_SECTIONS} />
